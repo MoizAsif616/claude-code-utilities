@@ -7,7 +7,7 @@ type Inline = (RenderNode | string)[]
 // structure. Body text keeps the terminal's own colour.
 export const ORANGE = '#F97316'
 export const ORANGE_BOLD = '#FB923C'
-export const ORANGE_LIGHT = '#FDBA74'
+export const ORANGE_LIGHT = '#FED7AA'
 export const PURPLE = '#A855F7'
 export const PURPLE_DEEP = '#7C3AED'
 export const PURPLE_LIGHT = '#C4B5FD'
@@ -35,7 +35,7 @@ const INLINE: [RegExp, (m: RegExpExecArray, ctx: Ctx, el: El) => RenderNode][] =
   [
     /^(\*\*|__)(?=\S)([\s\S]+?)(?<=\S)\1/,
     (m, ctx, el) => (
-      <el.Text bold color={ctx.bold}>
+      <el.Text bold color={ctx.color ?? ctx.bold}>
         {inline(m[2] ?? '', ctx, el)}
       </el.Text>
     ),
@@ -324,11 +324,11 @@ export function parse(src: string): Block[] {
 
 // ---------------------------------------------------------------- drawing
 
-// Each heading sits on a soft warm band so it stands out from the text.
-const HEADINGS: Record<number, { color?: string; bg?: string; underline?: boolean }> = {
-  1: { color: ORANGE, bg: '#431407', underline: true },
-  2: { color: ORANGE, bg: '#3A1A0A' },
-  3: { color: ORANGE_LIGHT, bg: '#2C1A0E' },
+// Headings are bold bright orange (the table-header orange), no background.
+const HEADINGS: Record<number, { color: string; underline?: boolean }> = {
+  1: { color: TABLE_HEAD, underline: true },
+  2: { color: TABLE_HEAD },
+  3: { color: TABLE_HEAD },
 }
 
 function drawTable(b: Extract<Block, { kind: 'table' }>, room: number, el: El): RenderNode {
@@ -365,8 +365,8 @@ function drawTable(b: Extract<Block, { kind: 'table' }>, room: number, el: El): 
       }
       cellsOut.push(
         <Box width={w + 2} paddingX={1} justifyContent={justify(b.align[c])}>
-          <Text bold={isHead} color={isHead ? WHITE : undefined} wrap="wrap">
-            {inline(values[c] ?? '', isHead ? { bold: WHITE, color: WHITE } : { bold: ORANGE_BOLD }, el)}
+          <Text bold={isHead} color={isHead ? WHITE : undefined} backgroundColor={bg} wrap="wrap">
+            {inline(values[c] ?? '', isHead ? { bold: WHITE, color: WHITE } : { bold: ORANGE_LIGHT }, el)}
           </Text>
         </Box>,
       )
@@ -406,7 +406,7 @@ function drawList(items: Item[], el: El): RenderNode {
             </Text>
             {task !== null && <Text color={PURPLE}>{task[1] === ' ' ? '☐ ' : '☑ '}</Text>}
             <Box flexShrink={1}>
-              <Text>{inline(text, { bold: ORANGE_BOLD }, el)}</Text>
+              <Text>{inline(text, { bold: ORANGE_LIGHT }, el)}</Text>
             </Box>
           </Box>
         )
@@ -419,17 +419,15 @@ function drawBlock(b: Block, room: number, el: El): RenderNode {
   const { Box, Code, Text } = el
   switch (b.kind) {
     case 'heading': {
-      const style = HEADINGS[b.level] ?? {}
+      const style = HEADINGS[b.level] ?? { color: TABLE_HEAD }
       return (
-        <Text bold color={style.color} backgroundColor={style.bg} underline={style.underline}>
-          {style.bg === undefined ? '' : ' '}
-          {inline(b.text, { bold: style.color ?? ORANGE_BOLD }, el)}
-          {style.bg === undefined ? '' : ' '}
+        <Text bold color={style.color} underline={style.underline}>
+          {inline(b.text, { bold: style.color }, el)}
         </Text>
       )
     }
     case 'para':
-      return <Text>{inline(b.text, { bold: ORANGE_BOLD }, el)}</Text>
+      return <Text>{inline(b.text, { bold: ORANGE_LIGHT }, el)}</Text>
     case 'code':
       return (
         <Box flexDirection="column">
@@ -450,7 +448,7 @@ function drawBlock(b: Block, room: number, el: El): RenderNode {
           <Text color={PURPLE_DEEP}>▎ </Text>
           <Box flexShrink={1}>
             <Text italic dimColor>
-              {inline(b.text, { bold: ORANGE_BOLD }, el)}
+              {inline(b.text, { bold: ORANGE_LIGHT }, el)}
             </Text>
           </Box>
         </Box>

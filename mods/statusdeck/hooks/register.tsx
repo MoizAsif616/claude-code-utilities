@@ -26,8 +26,6 @@ const clockAtom = atom({ plugin: 'statusdeck', key: 'clock' } as const, { now: 0
 const panesSummary = { plugin: 'panes', key: 'summary' } as const
 
 // Palette shared with inkstyle and panes.
-const PURPLE_STOPS = ['#E9D5FF', '#A855F7', '#4C1D95']
-const TRACK = '#3F3F46'
 const PILL_BG = '#202C34'
 const PILL_LABEL = '#D4DCE2'
 const PILL_TIMER = '#A7B3BD'
@@ -51,7 +49,6 @@ const PURPLE = '#A855F7'
 const PURPLE_LIGHT = '#C4B5FD'
 const GREEN = '#22C55E'
 const ICE = '#7DD3FC'
-const WHITE = '#FFFFFF'
 const WARM_ICON = '⚡'
 const COLD_ICON = '❄'
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -95,13 +92,6 @@ function mix(a: string, b: string, t: number): string {
       .toString(16)
       .padStart(2, '0')
   return `#${part(ar, br)}${part(ag, bg)}${part(ab, bb)}`
-}
-
-// t from 0 to 1 along evenly spaced stops.
-function ramp(stops: string[], t: number): string {
-  const x = Math.min(1, Math.max(0, t)) * (stops.length - 1)
-  const i = Math.min(stops.length - 2, Math.floor(x))
-  return mix(stops[i] ?? WHITE, stops[i + 1] ?? WHITE, x - i)
 }
 
 function usedColor(percent: number): string {
@@ -523,7 +513,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // The line the engine animates while a turn runs: just the word, so the
-  // time and tokens appear once, in the band's progress row.
+  // time and tokens appear once, in the footer after the effort.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
     const { Text } = $.ui.resolve(e)
@@ -537,14 +527,12 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // The band above the prompt: only the live progress row (and the panes
-  // chips), so while idle it draws nothing and takes no row.
+  // The band above the prompt: only the panes chips, so without them it draws
+  // nothing and takes no row.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
-    const run = await read($, runAtom)
-    const cols = e.props.bodyColumns
     const { value: panes } = await $.state.get(panesSummary)
 
     // While the panes panel is off screen, its news folds into one quiet row.
@@ -584,31 +572,8 @@ export const register: Register = (on, options) => {
       )
     }
 
-    const progress = () => {
-      const width = cols >= 150 ? 18 : cols >= 110 ? 12 : 8
-      const filled = run.frame % (width + 1)
-      const cells = []
-      for (let i = 0; i < filled; i++) {
-        cells.push(<Text color={ramp(PURPLE_STOPS, (i + 0.5) / width)}>▰</Text>)
-      }
-      return (
-        <Box flexDirection="row">
-          {cells}
-          <Text color={TRACK}>{'▱'.repeat(width - filled)}</Text>
-          <Text color="#C4B5FD"> ⏱ {elapsed(run.now - run.startedAt)}</Text>
-          <Text color="#C4B5FD"> ↓ {compact(run.tokens)} tok</Text>
-        </Box>
-      )
-    }
-
     const chipRow = panes !== undefined && !panes.isPanelShown ? chips(panes) : null
-    if (chipRow === null && !run.isWorking) return next(e)
-    return (
-      <Box flexDirection="column">
-        {chipRow}
-        {run.isWorking && progress()}
-      </Box>
-    )
+    return chipRow ?? next(e)
   })
 
   // The footer row under the prompt is the engine's: its own mode text, then
@@ -698,13 +663,15 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // The mode, model and effort, after the engine's own mode text.
+  // The mode, model and effort, after the engine's own mode text; while a turn
+  // runs, its time and live output tokens follow the effort.
   on('ui.render', { component: 'PromptHint' }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     // A blank of fixed width that never shrinks, so on a narrow terminal the
     // words keep their spacing and wrap whole instead of running together.
     const gap = (key: string, cells: number) => <Box key={key} width={cells} flexShrink={0} />
     const controls = await read($, controlsAtom)
+    const run = await read($, runAtom)
     const mode = modeOf(e.props.hint)
     const model = prettyModel(controls.model)
     const effort = controls.effort ?? '…'
@@ -732,6 +699,14 @@ export const register: Register = (on, options) => {
             </Text>
           </Button>
         </Box>
+        {run.isWorking && gap('gap-run', MODE_GAP)}
+        {run.isWorking && (
+          <Box key="run" flexDirection="row" flexShrink={0}>
+            <Text color={PURPLE_LIGHT}>{`⏱ ${elapsed(run.now - run.startedAt)}`}</Text>
+            {gap('gap-tokens', 1)}
+            <Text color={PURPLE_LIGHT}>{`↓ ${compact(run.tokens)} tok`}</Text>
+          </Box>
+        )}
       </Box>
     )
   })

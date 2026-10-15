@@ -74,6 +74,29 @@ test('the spinner line shows the word and no time or token count', async ($, on)
   await ui.unmount()
 })
 
+test('while a turn runs, its time and live tokens follow the effort in the footer', async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.start', (_$, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({}))
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return h(Text, {}, 'engine band') as RenderElement
+  })
+  const ui = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...hint('? for shortcuts') })
+  expect(await ui.find({ type: 'Text', text: /⏱|tok/ })).toBeUndefined()
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  // The ticker runs every 160 ms, so the last tick lands at 1:15.04.
+  await clock.advance(75100)
+  expect(await ui.find({ type: 'Text', text: /^⏱ 1:15$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^↓ 0 tok$/ })).toBeDefined()
+  await ui.unmount()
+  // Above the prompt nothing of the mod's draws: no progress bar, no counts.
+  const band = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...BAND })
+  expect(await band.find({ type: 'Text', text: /⏱|tok|▰|▱/ })).toBeUndefined()
+  expect(await band.find({ type: 'Text', text: /engine band/ })).toBeDefined()
+  await band.unmount()
+})
+
 const START = { cwd: '/work', surface: 'terminal', isInteractive: true } as const
 const NO_READING = { startedAt: 0, context: { window: 200000 }, rateLimits: [] }
 const SETTINGS = { modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } }
