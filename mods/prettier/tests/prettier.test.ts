@@ -572,8 +572,10 @@ test('in fullscreen a finished failed call is one row that opens to its error', 
 test("in fullscreen a copy mark beside the prompt's time copies the prompt alone", async ($, on) => {
   const clock = mock.clock(on)
   let copied = ''
+  let copies = 0
   on('ui.copy', async ($, e) => {
     copied = e.text
+    copies += 1
     return { value: { isCopied: true as const } }
   })
   const text = 'reverse a string\nwithout builtins'
@@ -584,12 +586,17 @@ test("in fullscreen a copy mark beside the prompt's time copies the prompt alone
     props: { text, origin: { kind: 'composer' }, isExpanded: false },
     viewport: fullscreen,
   })
-  const mark = await ui.find({ type: 'Text', text: /^⧉$/ })
+  const mark = await ui.find({ type: 'Text', text: /^ ⧉ $/ })
   expect(mark?.props.color).toBe('#71717A')
   await ui.press({ key: 'copy-prompt' })
+  await ui.press({ key: 'copy-prompt' })
   expect(copied).toBe(text)
-  expect(await ui.find({ type: 'Text', text: /^✓$/ })).toBeDefined()
+  expect(copies).toBe(1)
+  const tick = await ui.find({ type: 'Text', text: /^ ✓ $/ })
+  expect(tick?.props.color).toBe('#22C55E')
   await clock.advance(3600)
-  expect(await ui.find({ type: 'Text', text: /^⧉$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ ⧉ $/ })).toBeDefined()
+  await ui.press({ key: 'copy-prompt' })
+  expect(copies).toBe(2)
   await ui.unmount()
 })

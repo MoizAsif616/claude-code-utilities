@@ -117,7 +117,7 @@ The layout of the chat. What it changes:
 - **Your prompts:** a pill with a rounded purple border on the right, one space of padding on the
   left, at most 70% of the terminal wide, with the time you sent it under it. A long prompt shows
   its first 6 lines, then `▸ 14 more lines`. Beside the time, `14:32  ⧉` (same grey): a click on
-  `⧉` copies that prompt's text and nothing else, and it reads `✓` for 3.5 seconds.
+  `⧉` copies that prompt's text and nothing else, and it reads a green `✓` for 3.5 seconds.
 - **Replies and tool-call rows:** held to the left 85% of the terminal (needs the
   [load order](#load-order-prettier-goes-first)).
 - **Code blocks in replies:** each fenced block is a charcoal panel with a thin violet rounded

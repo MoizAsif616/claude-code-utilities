@@ -154,15 +154,24 @@ async function foldedDiff(
 
 // The Copy control of a code panel: the raw code to the clipboard, then
 // `Copied!` for a while.
+// A press while one is still showing its mark is ignored, so one click never
+// puts the text on the clipboard twice.
+const copying = new Set<string>()
 async function copyCode($: EngineInterface, id: string, code: string, surface: RenderSurface): Promise<void> {
+  if (copying.has(id)) return
+  copying.add(id)
   const done = await $.ui.copy({ text: code, surface })
   if (!done.isCopied) {
+    copying.delete(id)
     $.ui.toast(`prettier: the code could not be copied (${done.reason}).`)
     return
   }
   const member = memberOf(copiedAtom, { requestId: id })
   await update($, member, () => true)
-  $.clock.after(COPIED_MS, () => void update($, member, () => false))
+  $.clock.after(COPIED_MS, () => {
+    copying.delete(id)
+    void update($, member, () => false)
+  })
 }
 
 // Whether a drawing holds Claude Code's own (`{ type: 'engine' }`), as next(e)
@@ -379,13 +388,13 @@ export const register: Register = on => {
               ))}
           </Box>
           {(at !== undefined || canClick) && (
-            <Box flexDirection="row" paddingRight={1}>
+            <Box flexDirection="row" paddingRight={at !== undefined && canClick ? 0 : 1}>
               {at !== undefined && <Text color={GREY}>{formatClock(at)}</Text>}
-              {at !== undefined && canClick && <Text color={GREY}>{'  '}</Text>}
+              {at !== undefined && canClick && <Text color={GREY}>{' '}</Text>}
               {/* Copies the prompt's own text, nothing else; ✓ for a moment after. */}
               {canClick && (
                 <Button plain key="copy-prompt" onPress={press => void copyCode($, promptCopyId, text, press.surface)}>
-                  <Text color={GREY}>{isPromptCopied ? PROMPT_COPIED : PROMPT_COPY}</Text>
+                  <Text color={isPromptCopied ? GREEN : GREY}>{isPromptCopied ? PROMPT_COPIED : PROMPT_COPY}</Text>
                 </Button>
               )}
             </Box>
