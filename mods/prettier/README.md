@@ -4,7 +4,8 @@ Chat layout for the Claude Code terminal:
 
 - **Your prompts:** a pill with a rounded purple border (no fill, one space of padding on the left) on the right, at most 70% of the
   terminal wide, with the time you sent it under it. A long prompt shows its first 6
-  lines, then `… 14 more lines · ctrl+o to see all`.
+  lines, then `… 14 more lines · ctrl+o to see all`. In fullscreen, `⧉` beside the time (same
+  grey) copies that prompt's text alone and reads `✓` for 3.5 seconds.
 - **Replies and tool output:** held to the left 85% of the terminal.
 - **Code blocks in replies:** each fenced block is a charcoal panel with a thin violet rounded
   border. Its top row holds the language (`python`, or `code` when unlabeled) on a slightly lighter

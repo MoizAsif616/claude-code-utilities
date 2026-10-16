@@ -28,6 +28,10 @@ export const COPY_LABEL = '⧉ Copy'
 export const COPIED_LABEL = 'Copied!'
 export const COPIED_MS = 3500
 
+// The copy mark beside a prompt's time, and what it reads just after a copy.
+export const PROMPT_COPY = '⧉'
+export const PROMPT_COPIED = '✓'
+
 // An opened group: each call on a filled block, its output up to this many lines.
 export const CALL_FILL = '#1C1B22'
 export const CALL_OUTPUT_LINES = 40

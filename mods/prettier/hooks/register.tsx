@@ -20,6 +20,8 @@ import {
   PANEL_LABEL,
   PANEL_PAD_X,
   PILL_PAD_LEFT,
+  PROMPT_COPIED,
+  PROMPT_COPY,
   PURPLE,
   PURPLE_LIGHT,
   RED,
@@ -354,6 +356,8 @@ export const register: Register = on => {
               : `▸ ${more}`
       const width = pillWidth([...capped.shown.split('\n'), ...(hint === undefined ? [] : [hint])], columns, p.width)
       const at = p.time ? promptTime(await read($, promptsAtom), text) : undefined
+      const promptCopyId = `${e.requestId}:prompt`
+      const isPromptCopied = canClick && (await read($, memberOf(copiedAtom, { requestId: promptCopyId })))
       return (
         <Box flexDirection="column" alignItems="flex-end" width={columns}>
           <Box
@@ -374,9 +378,16 @@ export const register: Register = on => {
                 <Text color={GREY}>{hint}</Text>
               ))}
           </Box>
-          {at !== undefined && (
-            <Box paddingRight={1}>
-              <Text color={GREY}>{formatClock(at)}</Text>
+          {(at !== undefined || canClick) && (
+            <Box flexDirection="row" paddingRight={1}>
+              {at !== undefined && <Text color={GREY}>{formatClock(at)}</Text>}
+              {at !== undefined && canClick && <Text color={GREY}>{'  '}</Text>}
+              {/* Copies the prompt's own text, nothing else; ✓ for a moment after. */}
+              {canClick && (
+                <Button plain key="copy-prompt" onPress={press => void copyCode($, promptCopyId, text, press.surface)}>
+                  <Text color={GREY}>{isPromptCopied ? PROMPT_COPIED : PROMPT_COPY}</Text>
+                </Button>
+              )}
             </Box>
           )}
         </Box>

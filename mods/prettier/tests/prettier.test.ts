@@ -568,3 +568,28 @@ test('in fullscreen a finished failed call is one row that opens to its error', 
   expect(await result.find({ type: 'Text' })).toBeUndefined()
   await result.unmount()
 })
+
+test("in fullscreen a copy mark beside the prompt's time copies the prompt alone", async ($, on) => {
+  const clock = mock.clock(on)
+  let copied = ''
+  on('ui.copy', async ($, e) => {
+    copied = e.text
+    return { value: { isCopied: true as const } }
+  })
+  const text = 'reverse a string\nwithout builtins'
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'UserMessage',
+    props: { text, origin: { kind: 'composer' }, isExpanded: false },
+    viewport: fullscreen,
+  })
+  const mark = await ui.find({ type: 'Text', text: /^⧉$/ })
+  expect(mark?.props.color).toBe('#71717A')
+  await ui.press({ key: 'copy-prompt' })
+  expect(copied).toBe(text)
+  expect(await ui.find({ type: 'Text', text: /^✓$/ })).toBeDefined()
+  await clock.advance(3600)
+  expect(await ui.find({ type: 'Text', text: /^⧉$/ })).toBeDefined()
+  await ui.unmount()
+})
