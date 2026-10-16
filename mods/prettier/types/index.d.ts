@@ -43,6 +43,10 @@ declare module 'claude-code' {
       // Whether a compact row (a folded prompt, a group, a turn's tools) is open,
       // by the row's requestId.
       open: StateFamily<boolean>
+      // Whether a code panel's Copy was just pressed, by `<requestId>:<block>`.
+      copied: StateFamily<boolean>
+      // The spinner's animation step while the main loop's turn runs.
+      spin: number
     }
   }
 }

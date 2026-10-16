@@ -13,7 +13,6 @@ const runAtom = atom({ plugin: 'statusdeck', key: 'run' } as const, {
   startedAt: 0,
   now: 0,
   tokens: 0,
-  frame: 0,
 } as Run)
 const controlsAtom = atom({ plugin: 'statusdeck', key: 'controls' } as const, {
   effort: null,
@@ -51,7 +50,6 @@ const GREEN = '#22C55E'
 const ICE = '#7DD3FC'
 const WARM_ICON = '⚡'
 const COLD_ICON = '❄'
-const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const TICK_MS = 160
 const POLL_MS = 1000
@@ -273,7 +271,7 @@ function live(): number {
 async function tick($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   const tokens = live()
-  await update($, runAtom, r => ({ ...r, now, tokens, frame: r.frame + 1 }))
+  await update($, runAtom, r => ({ ...r, now, tokens }))
 }
 
 function startTicker($: EngineInterface): void {
@@ -511,21 +509,6 @@ export const register: Register = (on, options) => {
     await refreshControls($)
     return ran
   }).catch(($, e, next) => next(e))
-
-  // The line the engine animates while a turn runs: just the word, so the
-  // time and tokens appear once, in the footer after the effort.
-  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (e.surface !== 'terminal') return next(e)
-    const { Text } = $.ui.resolve(e)
-    const run = await read($, runAtom)
-    const word = e.props.message ?? e.props.word
-    const text = word.endsWith('…') ? word : `${word}${e.props.suffix}`
-    return (
-      <Text color="#A855F7">
-        {SPINNER[run.frame % SPINNER.length]} {text}
-      </Text>
-    )
-  })
 
   // The band above the prompt: only the panes chips, so without them it draws
   // nothing and takes no row.

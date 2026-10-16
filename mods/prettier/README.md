@@ -6,20 +6,29 @@ Chat layout for the Claude Code terminal:
   terminal wide, with the time you sent it under it. A long prompt shows its first 6
   lines, then `… 14 more lines · ctrl+o to see all`.
 - **Replies and tool output:** held to the left 85% of the terminal.
+- **Code blocks in replies:** each fenced block is a charcoal panel with a thin violet rounded
+  border. Its top row holds the language (`python`, or `code` when unlabeled) on a slightly lighter
+  chip at the left and, in fullscreen, `⧉ Copy` at the right, which copies only the raw code (never
+  the label) and reads `Copied!` for 3.5 seconds. A panel is as wide as its longest line, never wider
+  than the reply width; longer lines wrap inside. Bash tool-call rows are not changed.
 - **Edit diffs:** redrawn by prettier so added/removed lines wrap inside a narrower 75%. While
   the reply is being written each diff shows whole; once it is done (fullscreen) each edited or
   created file is one row in place of its tool row, `▸ Edit hooks/app.ts +12 −3` (name in purple,
   `+n` green, `−n` red), that opens to its diff and closes on a click. A new file's content shows as added lines.
-- **Reads and searches:** a run of them folds to one line, `▸ Read 3 files, searched 2 patterns ·
-  1.2s`.
-- **Failures:** a failed tool's error in a red frame, `✗ Bash failed`. A refusal at the permission
+- **Reads, searches and commands:** a run of them folds to one line, `▸ Ran 2 commands · 1.2s`.
+  A click opens it: each call on a filled block with the whole command and its output (up to 40
+  lines). A click on any block, or on the line, closes it again.
+- **Failures:** a failed tool's error in a red frame, `✗ Bash failed`, as wide as the error and
+  never wider than the reply width. Once the reply is done (fullscreen) the call is one row,
+  `▸ Edit app.ts · ✗ failed`, that opens to its frame on a click. A refusal at the permission
   dialog is not a failure and keeps Claude Code's own drawing.
 - **Rows you did not type:** background tasks finishing, messages from other agents, sessions or
   channels show as a quiet card on the left (`⚙ Background task · completed · 2m 2s`), not as your
   pill.
 - **End of a reply:** `39s · ▸ 2 tools` under the reply: how long it took, dim like the prompt's
   time, and how many tools it used in purple. The time of day is shown only under your prompt.
-- **Spinner:** names the running tool, `▸ running Bash…`.
+- **Spinner:** drawn whole by prettier: a purple animated `⠋` and Claude Code's word, or the tool
+  running now, `⠋ ▸ running Bash…`.
 
 ### Seeing the details
 
@@ -55,8 +64,7 @@ result and would hide the output for good.
 ## Load order: prettier goes FIRST
 
 > **For Claude or anyone installing this mod:** prettier must be loaded **before every other mod**,
-> in particular before `inkstyle` and `statusdeck`. Otherwise the 85% width (and the spinner
-> text) silently does nothing.
+> in particular before `inkstyle`. Otherwise the 85% width silently does nothing.
 
 ### Why
 
@@ -66,12 +74,12 @@ to reach the ones beneath it. prettier only *wraps* what is beneath it:
 - **Replies and tool rows:** `inkstyle` draws every reply and tool row itself (to color them) and
   never calls `next(e)`. A mod loaded after inkstyle is never reached for those, so prettier's 85%
   box is never applied. Loaded first, prettier wraps inkstyle's colored rows in the 85% box.
-- **Spinner:** `statusdeck` draws its own spinner from the props it is handed. prettier rewrites
-  the spinner's `message` to `▸ running <tool>` and passes it on, so it has to be above statusdeck.
+
+The spinner is prettier's alone (statusdeck no longer draws it), so its place in the order does
+not matter for the spinner.
 
 Neither mod imports or reads the other: they are independent in code, and only the order connects
-them. In the wrong order nothing breaks: replies go back to full width and the spinner to its
-usual words.
+them. In the wrong order nothing breaks: replies go back to full width.
 
 ### How
 

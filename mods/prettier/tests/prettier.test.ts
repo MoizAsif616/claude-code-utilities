@@ -11,12 +11,17 @@ import {
   formatDuration,
   groupDuration,
   groupSummary,
+  inputDelta,
   isRejection,
   matchTurn,
+  panelLabel,
+  panelWidth,
   pillWidth,
   promptTime,
   share,
   shortPath,
+  spinnerText,
+  splitFences,
   toolLabel,
 } from '../hooks/layout'
 import { DEFAULTS, applyArgs, describeAll, describeSection, mergeSettings } from '../hooks/settings'
@@ -280,35 +285,40 @@ test('in fullscreen a folded prompt opens and closes on a click', async ($, on) 
   await ui.unmount()
 })
 
-test('in fullscreen a tool group toggles open on a click', async ($, on) => {
+test('in fullscreen a tool group opens to its calls, and a click on one closes it', async ($, on) => {
   mock.clock(on)
-  // Beneath the plugin, the engine's own drawing of the opened group.
-  on('ui.render', { component: 'ToolGroup' }, async ($, e) => {
-    const { Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
-    return Text({ children: e.props.isExpanded ? 'engine rows' : 'engine line' })
-  })
-  const call = (tool: string, id: string) => ({
-    tool_use_id: id,
-    tool,
-    input: {},
-    isRunning: false,
-    isErrored: false,
-    isInterrupted: false,
-  })
   const ui = await $.ui.mount({
     plugin: 'prettier',
     surface: 'terminal',
     component: 'ToolGroup',
-    props: { calls: [call('Read', 'a'), call('Grep', 'b')], isActive: false, isExpanded: false },
+    props: {
+      calls: [
+        {
+          tool_use_id: 'a',
+          tool: 'Bash',
+          input: { command: 'npm test -- --watch=false' },
+          output: { stdout: 'all 12 passed', stderr: '', interrupted: false },
+          isRunning: false,
+          isErrored: false,
+          isInterrupted: false,
+        },
+      ],
+      isActive: false,
+      isExpanded: false,
+    },
     viewport: fullscreen,
   })
   expect(await ui.find({ type: 'Text', text: /^▸$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /engine/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /all 12 passed/ })).toBeUndefined()
   await ui.press({ key: 'group' })
   expect(await ui.find({ type: 'Text', text: /^▾$/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /engine rows/ })).toBeDefined()
-  await ui.press({ key: 'group' })
-  expect(await ui.find({ type: 'Text', text: /engine/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /npm test -- --watch=false/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /all 12 passed/ })).toBeDefined()
+  const block = (await ui.findAll({ type: 'Box' })).find(b => b.props.backgroundColor === '#1C1B22')
+  expect(block).toBeDefined()
+  await ui.press({ key: 'call-0' })
+  expect(await ui.find({ type: 'Text', text: /^▸$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /all 12 passed/ })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -359,5 +369,202 @@ test('in fullscreen a finished edit is one row that opens on a click', async ($,
   })
   expect(await result.find({ type: 'Text' })).toBeUndefined()
   expect(await result.find({ type: 'Code' })).toBeUndefined()
+  await result.unmount()
+})
+
+// ---------------------------------------------------------------- code panels
+
+test('a reply splits into prose and its fenced blocks', () => {
+  const parts = splitFences('Run this:\n\n```bash\nnpm test\n```\n\nThen:\n~~~\n\tplain\n~~~')
+  expect(parts).toEqual([
+    { kind: 'prose', text: 'Run this:' },
+    { kind: 'code', language: 'bash', code: 'npm test' },
+    { kind: 'prose', text: 'Then:' },
+    { kind: 'code', language: '', code: '\tplain' },
+  ])
+  // A block still being written runs to the end; a list item's indent is dropped.
+  expect(splitFences('1. Install:\n   ```sh\n   pip install x\n   ')).toEqual([
+    { kind: 'prose', text: '1. Install:' },
+    { kind: 'code', language: 'sh', code: 'pip install x\n' },
+  ])
+  expect(splitFences('no code, just `inline`')).toEqual([{ kind: 'prose', text: 'no code, just `inline`' }])
+  expect(panelLabel('')).toBe('code')
+})
+
+test('a panel is as wide as its longest line, never wider than the room', () => {
+  // 20 cells of code, a space of padding a side, a border a side.
+  expect(panelWidth('npm test --watch=all', 'bash', 80)).toBe(20 + 2 + 2)
+  // Short code: room for the top row, ` bash ` chip, a space, `Copied!`.
+  expect(panelWidth('ls', 'bash', 80)).toBe(6 + 1 + 7 + 2 + 2)
+  expect(panelWidth('x'.repeat(300), 'python', 80)).toBe(80)
+})
+
+test('a fenced block draws as a filled panel with its label and a Copy control', async ($, on) => {
+  const clock = mock.clock(on)
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e) => {
+    const { Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
+    return Text({ children: `prose:${e.props.text}` })
+  })
+  let copied = ''
+  on('ui.copy', async ($, e) => {
+    copied = e.text
+    return { value: { isCopied: true as const } }
+  })
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: 'Reverse it:\n\n```python\nprint("hi"[::-1])\n```\n\nDone.', isFirstOfReply: true },
+    viewport: fullscreen,
+  })
+  expect(await ui.find({ type: 'Text', text: /prose:Reverse it:/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /prose:Done\./ })).toBeDefined()
+  const panel = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
+  expect(panel?.props.backgroundColor).toBe('#111114')
+  expect(panel?.props.borderColor).toBe('#8B7CBD')
+  const chip = await ui.find({ type: 'Text', text: / python / })
+  expect(chip?.props.backgroundColor).toBe('#2E2A3A')
+  expect((await ui.find({ type: 'Code' }))?.props.source).toBe('print("hi"[::-1])')
+  await ui.press({ key: 'copy-1' })
+  expect(copied).toBe('print("hi"[::-1])')
+  expect(await ui.find({ type: 'Text', text: /Copied!/ })).toBeDefined()
+  await clock.advance(3600)
+  expect(await ui.find({ type: 'Text', text: /⧉ Copy/ })).toBeDefined()
+  await ui.unmount()
+})
+
+// ---------------------------------------------------------------- spinner
+
+test('the spinner says the tool running now, else the engine word', () => {
+  const props = { word: 'Sauteing', message: null, suffix: '…' }
+  expect(spinnerText(props)).toBe('Sauteing…')
+  expect(spinnerText(props, 'Bash')).toBe('▸ running Bash…')
+  expect(spinnerText({ ...props, message: 'Compacting…' })).toBe('Compacting…')
+})
+
+test('prettier draws the spinner itself, in purple', async ($, on) => {
+  mock.clock(on)
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'Spinner',
+    props: { word: 'Sauteing', message: null, suffix: '…', mode: 'responding' },
+    viewport,
+  })
+  const line = await ui.find({ type: 'Text', text: /⠋ Sauteing…/ })
+  expect(line?.props.color).toBe('#A855F7')
+  await ui.unmount()
+})
+
+// ---------------------------------------------------------------- tool rows
+
+test("an edit's +n −n is drawn by prettier after the row beneath", async ($, on) => {
+  mock.clock(on)
+  on('ui.render', { component: 'ToolUse' }, async ($, e) => {
+    const { Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
+    return Text({ children: 'Edit src/app.ts' })
+  })
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'ToolUse',
+    props: {
+      tool_use_id: 't1',
+      tool: 'Edit',
+      input: { file_path: 'C:/x/src/app.ts', old_string: 'a\nb', new_string: 'a\nc\nd' },
+      isRunning: true,
+      isErrored: false,
+      isInterrupted: false,
+    },
+    viewport,
+  })
+  expect((await ui.find({ type: 'Text', text: /^ \+2$/ }))?.props.color).toBe('#22C55E')
+  expect((await ui.find({ type: 'Text', text: /^ −1$/ }))?.props.color).toBe('#EF4444')
+  await ui.unmount()
+})
+
+test("Claude Code's own drawing is never put in a box with a width", async ($, on) => {
+  mock.clock(on)
+  // Beneath the plugin, no mod: the engine's own node.
+  on('ui.render', { component: 'ToolProgress' }, () => ({ type: 'engine' as const, ref: 0 }))
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'ToolProgress',
+    props: { tool_use_id: 't1', kind: 'background_hint' as const, hint: 'still running' },
+    viewport,
+  })
+  const sized = (await ui.findAll({ type: 'Box' })).filter(b => b.props.width !== undefined)
+  expect(sized.length).toBe(0)
+  await ui.unmount()
+})
+
+test('inputDelta counts an edit or a new file from its input', () => {
+  expect(inputDelta('Edit', { old_string: 'a\nb', new_string: 'a\nc\nd' })).toEqual({ added: 2, removed: 1 })
+  expect(inputDelta('Write', { content: 'x\ny\nz' })).toEqual({ added: 3, removed: 0 })
+  expect(inputDelta('Bash', { command: 'ls' })).toBeUndefined()
+})
+
+// ---------------------------------------------------------------- failures
+
+test("a failed call's red frame is as wide as its error, at most the reply width", async ($, on) => {
+  mock.clock(on)
+  const short = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'ToolResult',
+    props: { tool_use_id: 'f1', tool: 'Edit', output: '<tool_use_error>File not found</tool_use_error>', isErrored: true },
+    viewport,
+  })
+  expect(await short.find({ type: 'Text', text: /tool_use_error/ })).toBeUndefined()
+  const frame = (await short.findAll({ type: 'Box' })).find(b => b.props.borderColor === '#EF4444')
+  // The error (14 cells) is wider than `✗ Edit failed`; a space and a border each side.
+  expect(frame?.props.width).toBe(14 + 4)
+  await short.unmount()
+
+  const long = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'ToolResult',
+    props: { tool_use_id: 'f2', tool: 'Edit', output: `Error: ${'x'.repeat(300)}`, isErrored: true },
+    viewport,
+  })
+  const wide = (await long.findAll({ type: 'Box' })).find(b => b.props.borderColor === '#EF4444')
+  // 85% of 100 columns, less the result gutter.
+  expect(wide?.props.width).toBe(85 - 5)
+  await long.unmount()
+})
+
+test('in fullscreen a finished failed call is one row that opens to its error', async ($, on) => {
+  mock.clock(on)
+  on('session.cwd', () => ({ value: 'D:/x' }))
+  const props = {
+    tool_use_id: 'fail-1',
+    tool: 'Edit',
+    input: { file_path: 'D:/x/app.ts', old_string: 'a', new_string: 'b' },
+    isRunning: false,
+    isErrored: true,
+    isInterrupted: false,
+    output: '<tool_use_error>File has been modified since read</tool_use_error>',
+  }
+  const ui = await $.ui.mount({ plugin: 'prettier', surface: 'terminal', component: 'ToolUse', props, viewport: fullscreen })
+  expect(await ui.find({ type: 'Text', text: /✗ failed/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /modified since read/ })).toBeUndefined()
+  // A failed edit changed nothing: no count.
+  expect(await ui.find({ type: 'Text', text: /^ \+1$/ })).toBeUndefined()
+  await ui.press({ key: 'failure' })
+  expect(await ui.find({ type: 'Text', text: /modified since read/ })).toBeDefined()
+  await ui.press({ key: 'failure' })
+  expect(await ui.find({ type: 'Text', text: /modified since read/ })).toBeUndefined()
+  await ui.unmount()
+
+  const result = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'ToolResult',
+    props: { tool_use_id: 'fail-1', tool: 'Edit', output: props.output, isErrored: true },
+    viewport: fullscreen,
+  })
+  expect(await result.find({ type: 'Text' })).toBeUndefined()
   await result.unmount()
 })

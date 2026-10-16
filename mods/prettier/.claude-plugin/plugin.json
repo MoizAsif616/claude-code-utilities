@@ -1,6 +1,6 @@
 {
   "name": "prettier",
   "version": "0.1.0",
-  "description": "Chat layout: user prompts in a right-aligned pill, replies at 80% width, a turn footer and a live tool status. Load it before every other mod (first in CLAUDE_CODE_PLUGIN_DIRS); see README.md",
+  "description": "Chat layout: user prompts in a right-aligned pill, replies at 85% width, code panels with Copy, a turn footer and the spinner. Load it before every other mod (first in CLAUDE_CODE_PLUGIN_DIRS); see README.md",
   "types": "./types/index.d.ts"
 }

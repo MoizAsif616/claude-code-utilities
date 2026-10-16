@@ -8,7 +8,6 @@ const settingsAtom = atom({ plugin: 'inkstyle', key: 'settings' } as const, {
   isEnabled: true,
 } as Settings)
 
-const GREEN = '#22C55E'
 const RED = '#EF4444'
 const GREY = '#71717A'
 const GUTTER = 2
@@ -33,20 +32,8 @@ function str(input: Record<string, unknown>, key: string): string | undefined {
   return typeof v === 'string' && v !== '' ? v : undefined
 }
 
-// Lines added and removed, after the lines both sides share at either end.
-function lineDelta(before: string, after: string): [number, number] {
-  const a = before === '' ? [] : before.split('\n')
-  const b = after === '' ? [] : after.split('\n')
-  let head = 0
-  while (head < a.length && head < b.length && a[head] === b[head]) head += 1
-  let tail = 0
-  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) {
-    tail += 1
-  }
-  return [b.length - head - tail, a.length - head - tail]
-}
-
-type Row = { name: string; scope?: string; summary: string; delta?: [number, number] }
+// `isCommand`: the summary is a shell command, drawn whole with its own lines.
+type Row = { name: string; scope?: string; summary: string; isCommand?: true }
 
 function describe(tool: string, raw: unknown, cwd: string): Row {
   const input = (raw !== null && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
@@ -60,24 +47,13 @@ function describe(tool: string, raw: unknown, cwd: string): Row {
   switch (tool) {
     case 'Bash':
     case 'PowerShell':
-      return { name: tool, summary: (str(input, 'command') ?? '').split('\n')[0] ?? '' }
+      return { name: tool, summary: (str(input, 'command') ?? '').trim(), isCommand: true }
     case 'Read':
     case 'NotebookEdit':
       return { name: tool, summary: path === undefined ? '' : shortPath(path, cwd) }
     case 'Edit':
-      return {
-        name: tool,
-        summary: path === undefined ? '' : shortPath(path, cwd),
-        delta: lineDelta(str(input, 'old_string') ?? '', str(input, 'new_string') ?? ''),
-      }
-    case 'Write': {
-      const content = str(input, 'content') ?? ''
-      return {
-        name: tool,
-        summary: path === undefined ? '' : shortPath(path, cwd),
-        delta: [content === '' ? 0 : content.split('\n').length, 0],
-      }
-    }
+    case 'Write':
+      return { name: tool, summary: path === undefined ? '' : shortPath(path, cwd) }
     case 'Grep': {
       const where = path === undefined ? '' : ` in ${shortPath(path, cwd)}`
       return { name: tool, summary: `${str(input, 'pattern') ?? ''}${where}` }
@@ -99,10 +75,9 @@ function describe(tool: string, raw: unknown, cwd: string): Row {
   }
 }
 
-function clip(text: string, room: number): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (room <= 1) return ''
-  return flat.length > room ? `${flat.slice(0, room - 1)}…` : flat
+// Whitespace runs as one space, so a summary reads as one line of words.
+function flatten(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 // ---------------------------------------------------------------- toggle
@@ -161,12 +136,10 @@ export const register: Register = on => {
         : e.props.isRunning
           ? PURPLE_LIGHT
           : PURPLE
-    const delta = row.delta !== undefined && (row.delta[0] > 0 || row.delta[1] > 0) ? row.delta : undefined
-    const deltaText = delta === undefined ? '' : ` +${delta[0]} −${delta[1]}`
     const scope = row.scope === undefined ? '' : ` ${row.scope}`
     const note = e.props.isInterrupted ? ' · interrupted' : ''
-    const room =
-      (e.viewport?.columns ?? 80) - GUTTER - row.name.length - scope.length - deltaText.length - note.length - 2
+    // Drawn whole, never cut: the row wraps in whatever width it is given.
+    const summary = row.isCommand === true ? row.summary : flatten(row.summary)
     return (
       <Box flexDirection="row">
         <Box width={GUTTER} flexShrink={0}>
@@ -177,13 +150,7 @@ export const register: Register = on => {
             {row.name}
           </Text>
           {scope !== '' && <Text dimColor>{scope}</Text>}
-          {row.summary !== '' && <Text dimColor>{` ${clip(row.summary, room)}`}</Text>}
-          {delta !== undefined && (
-            <Text>
-              <Text color={GREEN}>{` +${delta[0]}`}</Text>
-              <Text color={RED}>{` −${delta[1]}`}</Text>
-            </Text>
-          )}
+          {summary !== '' && <Text dimColor>{` ${summary}`}</Text>}
           {note !== '' && <Text dimColor>{note}</Text>}
         </Text>
       </Box>

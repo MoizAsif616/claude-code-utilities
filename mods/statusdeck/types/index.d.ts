@@ -11,7 +11,6 @@ export type Run = {
   startedAt: number
   now: number
   tokens: number
-  frame: number
 }
 
 export type Controls = {

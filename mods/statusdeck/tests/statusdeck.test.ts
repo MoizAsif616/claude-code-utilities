@@ -23,11 +23,6 @@ const hint = (text: string) =>
 // The slot at the right of the footer row, where the pills and cache draw.
 const STATUS = { component: 'SessionMode', props: { modes: [] } } as const
 
-const SPINNER = {
-  component: 'Spinner',
-  props: { word: 'Sauteing', message: null, suffix: '…', mode: 'responding' },
-} as const
-
 test('the hint line holds the mode and the model and effort buttons; the right slot the cache', async ($, on) => {
   mock.clock(on)
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -64,14 +59,6 @@ test('the band above the prompt draws nothing while idle', async ($, on) => {
     await ui.unmount()
   }
   expect(passed).toBe(2)
-})
-
-test('the spinner line shows the word and no time or token count', async ($, on) => {
-  mock.clock(on)
-  const ui = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...SPINNER })
-  expect(await ui.find({ type: 'Text', text: /Sauteing/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /tokens|\ds\b/ })).toBeUndefined()
-  await ui.unmount()
 })
 
 test('while a turn runs, its time and live tokens follow the effort in the footer', async ($, on) => {

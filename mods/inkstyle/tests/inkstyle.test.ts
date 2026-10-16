@@ -96,7 +96,23 @@ test('a tool row names the tool and what it works on', async ($, on) => {
   })
   expect(await ui.find({ type: 'Text', text: /Edit/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /app\.ts/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /\+2/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /−1/ })).toBeDefined()
+  // The +n −n count is prettier's to draw, not inkstyle's.
+  expect(await ui.find({ type: 'Text', text: /\+2/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a long command is drawn whole, never cut', async ($, on) => {
+  mock.clock(on)
+  on('session.cwd', () => ({ value: 'C:/x' }))
+  const command = `npm run build && ${'x'.repeat(200)} && echo done`
+  const ui = await $.ui.mount({
+    plugin: 'inkstyle',
+    surface: 'terminal',
+    component: 'ToolUse',
+    props: { tool_use_id: 't2', tool: 'Bash', input: { command }, isRunning: false, isErrored: false, isInterrupted: false },
+    viewport: { columns: 60, rows: 40 },
+  })
+  expect(await ui.find({ type: 'Text', text: /echo done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /…/ })).toBeUndefined()
   await ui.unmount()
 })

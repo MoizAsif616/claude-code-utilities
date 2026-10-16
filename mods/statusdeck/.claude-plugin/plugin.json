@@ -1,7 +1,7 @@
 {
   "name": "statusdeck",
   "version": "0.4.4",
-  "description": "A status row under the prompt (mode, model, effort, 5h / 7d / context usage, cache warmth) and a live purple progress bar above it while working",
+  "description": "A status row under the prompt (mode, model, effort, 5h / 7d / context usage, cache warmth), with the turn's time and live tokens while working",
   "types": "./types/index.d.ts",
   "userConfig": {
     "cacheTtl": {
