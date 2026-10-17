@@ -1,0 +1,6 @@
+{
+  "name": "hark",
+  "version": "0.1.0",
+  "description": "Voice input for the prompt: local speech-to-text models, a record button above the input, live transcription",
+  "types": "./types/index.d.ts"
+}

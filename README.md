@@ -6,11 +6,11 @@ another.
 | Mod | Its job |
 | --- | --- |
 | `mods/statusdeck` | The status row under the prompt: live stats and their colours |
-| `mods/inkstyle` | Colours inside Claude's replies and on tool-call rows |
-| `mods/prettier` | The layout of the whole chat: prompts, replies, code, tool rows, the spinner |
+| `mods/prettier` | The layout and colours of the whole chat: prompts, replies, code, tool rows, the spinner |
+| `mods/hark` | Voice input: speak your prompt, transcribed on your own computer |
 
 Copy the mods into `~/.claude/mods`, then point Claude Code at them with the `CLAUDE_CODE_PLUGIN_DIRS`
-environment variable, **prettier first** (see [Load order](#load-order-prettier-goes-first)).
+environment variable (see [Load order](#load-order)).
 Restart Claude Code after installing.
 
 ## Install
@@ -22,7 +22,7 @@ git clone https://github.com/MoizAsif616/claude-code-utilities.git
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\mods" | Out-Null
 Copy-Item -Recurse -Force .\claude-code-utilities\mods\* "$env:USERPROFILE\.claude\mods\"
 [Environment]::SetEnvironmentVariable('CLAUDE_CODE_PLUGIN_DIRS',
-  "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\statusdeck;$env:USERPROFILE\.claude\mods\inkstyle",
+  "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\statusdeck;$env:USERPROFILE\.claude\mods\hark",
   'User')
 ```
 
@@ -46,7 +46,7 @@ $env:CLAUDE_CODE_PLUGIN_DIRS = [Environment]::GetEnvironmentVariable('CLAUDE_COD
 git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
 cp -r claude-code-utilities/mods/* ~/.claude/mods/
-echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/inkstyle"' >> ~/.bashrc
+echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/hark"' >> ~/.bashrc
 ```
 
 Open a new shell (or `source ~/.bashrc`) before starting `claude`.
@@ -57,28 +57,20 @@ Open a new shell (or `source ~/.bashrc`) before starting `claude`.
 git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
 cp -R claude-code-utilities/mods/* ~/.claude/mods/
-echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/inkstyle"' >> ~/.zshrc
+echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/hark"' >> ~/.zshrc
 ```
 
 Open a new shell (or `source ~/.zshrc`) before starting `claude`.
 
-## Load order: prettier goes first
+## Load order
 
-**prettier must be listed before inkstyle** in `CLAUDE_CODE_PLUGIN_DIRS` (`;`-separated on Windows,
-`:` on Linux and macOS). The install commands above list it first.
+The three mods never draw the same thing, so their order in `CLAUDE_CODE_PLUGIN_DIRS` doesn't matter
+(`;`-separated on Windows, `:` on Linux and macOS). The install commands list prettier first.
 
-Mods hook the same drawing in a chain: the first one loaded is the outermost, and it reaches the
-ones under it by handing the drawing on. prettier only *wraps* what is under it. inkstyle draws
-every reply and tool-call row itself (to colour them) and hands nothing on, so a mod loaded after
-inkstyle is never reached for those rows. Loaded first, prettier holds inkstyle's coloured replies
-and rows to 85% of the terminal; loaded after, they run the full width.
-
-statusdeck's place in the list doesn't matter: it and prettier never draw the same thing.
-
-In the wrong order nothing breaks; replies just go back to full width. Claude Code doesn't
-document the order mods load in; listing prettier first in this variable is what works. To check:
-ask Claude something with a long answer. If the reply wraps at about 85% of the terminal, the order
-is right.
+The one row hark shares is the one above the prompt: statusdeck draws its panes chips there (only
+with the panes mod), and whichever of the two is listed first shows when both have something to draw.
+hark also doesn't affect prettier's times: it keeps each prompt as it was finally sent, so the time
+under a prompt you sent while recording is right.
 
 ## statusdeck
 
@@ -96,30 +88,22 @@ The row under the prompt, with every colour in it:
 
 statusdeck has no commands of its own. It doesn't draw the spinner; prettier does.
 
-## inkstyle
-
-Colours only, inside Claude's replies and on tool-call rows:
-
-- **Replies:** orange headings and bold, lavender links, purple list and quote markers, and tables
-  with orange headers and striped rows.
-- **Tool-call rows:** a status dot (purple when done, light purple while running, red when it
-  failed, grey when interrupted), the tool's name in purple and what it worked on in grey. The
-  command or path is shown whole, never cut.
-
-| Command | What it does |
-| --- | --- |
-| `/inkstyle` | `on`, `off`, or no argument to switch between them |
-
 ## prettier
 
-The layout of the chat. What it changes:
+The layout and colours of the chat. What it changes:
 
-- **Your prompts:** a pill with a rounded purple border on the right, one space of padding on the
-  left, at most 70% of the terminal wide, with the time you sent it under it. A long prompt shows
+- **Your prompts:** a pill with a rounded purple border on the right, one space of padding on each
+  side, at most 70% of the terminal wide, with the time you sent it under it. A long prompt shows
   its first 6 lines, then `▸ 14 more lines`. Beside the time, `14:32  ⧉` (same grey): a click on
   `⧉` copies that prompt's text and nothing else, and it reads a green `✓` for 3.5 seconds.
-- **Replies and tool-call rows:** held to the left 85% of the terminal (needs the
-  [load order](#load-order-prettier-goes-first)).
+- **Replies and tool-call rows:** held to the left 85% of the terminal.
+- **Colours in replies:** orange headings and bold, lavender links, purple list and quote markers,
+  and tables framed in light orange lines, with orange headers, striped rows, a little padding in
+  each cell, column lines that run the full height of a wrapped row, and no column wider than 30%
+  of the reply.
+- **Colours on tool-call rows:** a status dot (purple when done, light purple while running, red
+  when it failed, grey when interrupted), the tool's name in purple and what it worked on in grey.
+  The command or path is shown whole, never cut.
 - **Code blocks in replies:** each fenced block is a charcoal panel with a thin violet rounded
   border. Its top row holds the language on a lighter chip at the left (`python`, or `code` when
   unlabeled) and `⧉ Copy` at the right, which copies only the code and reads `Copied!` for 3.5
@@ -154,7 +138,7 @@ calls, outputs and long prompts in full; press it again to go back.
 
 | Command | Settings (defaults) |
 | --- | --- |
-| `/prettier` | lists the commands; `on`, `off`, `reset` (every setting back to its default) |
+| `/prettier` | lists the commands; `on`, `off` (layout and colours together), `reset` (every setting back to its default) |
 | `/prettier-prompt` | `width 70` (% of the terminal), `lines 6` (shown before folding), `time on` |
 | `/prettier-response` | `width 85` (% of the terminal; also the most a code panel or red frame takes), `fold on` (fold runs of reads, searches and commands) |
 | `/prettier-code` | `width 75` (% of the terminal, for diffs) |
@@ -167,14 +151,73 @@ what's allowed.
 
 - Tool output and progress text that Claude Code draws itself run the full terminal width: Claude
   Code refuses a mod that puts its own drawing inside a fixed width.
-- inkstyle sizes tables for the full terminal width; inside the 85% box their columns are squeezed,
-  so a wide table's `│` lines may come out a little short.
 - Times and tool lists only appear for prompts and replies made after the mod loaded, not for
   resumed sessions.
 - The dim `● <mod>: ...` lines Claude Code prints when a mod loads, reloads or fails are Claude
   Code's own; no mod can restyle them.
 
 More detail is in [`mods/prettier/README.md`](mods/prettier/README.md).
+
+## hark
+
+Voice input for the prompt. You speak, and the words appear in the input box as you talk. Speech
+is turned into text by a model running on your own computer: no account, no API key, and your
+voice never leaves the machine. The only network use is downloading a model once.
+
+- **The row above the input:** while voice input is on, the model's name on the left and a red
+  `● Record` button on the right. While recording: a `■ Stop` button, a timer and level bars that
+  move with your voice and stay flat in silence.
+- **Recording:** click `● Record` and talk; the text fills the input live, after anything you had
+  already typed. Click `■ Stop` to keep the text and edit it, or press **Enter** to stop and send in
+  one go. With nothing said, the input is left as it was.
+- **Clean text:** "uh", "um", "er" and "hmm" are dropped; punctuation and capitals are kept.
+- **Speech detection:** a small detector (Silero, 640 KB) tells your voice from silence and room
+  noise, so background sound isn't transcribed. If it can't be loaded, hark goes by loudness.
+- **Remembers on/off:** if voice input was on when you closed Claude Code, it loads again in the
+  next session.
+- **Nothing left running:** turning it off or closing Claude Code unloads the model from memory,
+  and on Linux and macOS so does Claude Code crashing.
+
+### Models
+
+`/hark-models` opens a list of speech models with their languages, download size, RAM, speed and
+accuracy. Pick one, confirm, and it downloads (in the background if you like, with a red `✕` to
+cancel). Voice input switches to it as soon as it has loaded.
+
+- **Only one model is kept on disk.** Once a new model has loaded, the previous one is deleted to
+  free the space. A green `✓` marks the model in use.
+- **Speed** shows the catalog's estimate until you have used a model, then the wait measured on
+  your computer from `■ Stop` to the text appearing, for example `0.4 s`.
+- All of them run on a CPU; no graphics card is needed:
+
+| Model | Languages | Download | Notes |
+| --- | --- | --- | --- |
+| Moonshine Tiny / Base | English | 30 / 111 MB | Smallest and quickest; Base is a good first choice |
+| Kroko Live | English | 57 MB | Words appear as you say them; no punctuation |
+| Parakeet 110M | English | 108 MB | Very accurate for its size |
+| Parakeet 0.6B v2 / v3 | English / 25 European | about 485 MB | Best accuracy that is still fast on a CPU |
+| SenseVoice Small | Chinese, Cantonese, English, Japanese, Korean | 163 MB | For East Asian languages |
+| Whisper Small, Large v3, Large v3 Turbo | 99 | 0.5 to 3 GB | Most languages; the large ones are slow on a CPU |
+| Distil-Whisper Large | English | 1.5 GB | Near large-model accuracy, faster |
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `/hark` | Turns voice input on or off; `/hark on` and `/hark off` also work. With no model yet, it opens the list |
+| `/hark-models` | Choose, download, switch or delete a speech model |
+
+### What it needs
+
+- **Python 3.9 or newer** on your `PATH` (`python3`, `python` or `py`). hark makes its own Python
+  environment in `~/.claude/hark` and installs what it needs there, nothing system-wide. It uses
+  [uv](https://docs.astral.sh/uv/) when installed; otherwise Python's own `venv`, which on
+  Ubuntu/Debian needs `sudo apt install python3-venv`.
+- **A microphone.** On Linux also PortAudio: `sudo apt install libportaudio2` (Fedora:
+  `sudo dnf install portaudio`, Arch: `sudo pacman -S portaudio`). Windows and macOS have it built in.
+- **Disk:** about 450 MB for the environment, plus the model you pick.
+
+Everything hark downloads lives in `~/.claude/hark`. Delete that folder to remove it all.
 
 ## Update
 
@@ -191,4 +234,5 @@ environment variable only needs setting once.
 ## Notes
 
 - The `types/` and `tests/` folders inside each mod are for development and aren't needed to run the mods.
-- Tested on Windows. The code has nothing Windows-specific, so it should work on Linux and macOS, but I haven't verified that.
+- statusdeck and prettier are tested on Windows. The code has nothing Windows-specific, so they should work on Linux and macOS, but I haven't verified that.
+- hark is tested on Linux (Ubuntu). Its code handles Windows and macOS paths, but it hasn't been tried there.

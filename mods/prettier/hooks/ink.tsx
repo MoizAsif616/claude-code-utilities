@@ -1,12 +1,8 @@
-import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+// The colours inside replies and on tool-call rows. prettier's layout draws
+// around them; /prettier on|off turns both on or off together.
+import type { EngineInterface, RenderInput, RenderNode } from 'claude-code'
 
-import type { Settings } from '../types'
 import { drawMarkdown, ORANGE, PURPLE, PURPLE_LIGHT } from './markdown'
-
-const settingsAtom = atom({ plugin: 'inkstyle', key: 'settings' } as const, {
-  isEnabled: true,
-} as Settings)
 
 const RED = '#EF4444'
 const GREY = '#71717A'
@@ -80,36 +76,27 @@ function flatten(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
-// ---------------------------------------------------------------- toggle
+// ---------------------------------------------------------------- drawing
+//
+// Each answers what the row beneath prettier's layout draws: the colours when
+// they are on, else `next`. A drawing that fails is passed by, as Claude Code
+// passed by a mod's hook that failed, and `next` draws the row.
 
-async function setEnabled($: EngineInterface, isEnabled: boolean): Promise<void> {
-  await update($, settingsAtom, () => ({ isEnabled }))
-  await $.store.set('isEnabled', isEnabled)
+type Next<E> = (e: E) => Promise<RenderNode>
+
+// The colours draw on the terminal; prettier hands every row on when it is off.
+function isInkOn(surface: string): boolean {
+  return surface === 'terminal'
 }
 
-export const register: Register = on => {
-  on('session.start', async ($, e, next) => {
-    const stored = await $.store.get('isEnabled')
-    if (typeof stored === 'boolean') await update($, settingsAtom, () => ({ isEnabled: stored }))
-    await $.command.register({
-      name: 'inkstyle',
-      description: 'Turn the inkstyle reply colours on or off',
-      argumentHint: '[on|off]',
-    })
-    return next(e)
-  })
-
-  on('command.run', { command: 'inkstyle' }, async ($, e) => {
-    const arg = e.args.trim().toLowerCase()
-    const current = (await read($, settingsAtom)).isEnabled
-    const isEnabled = arg === 'on' ? true : arg === 'off' ? false : !current
-    await setEnabled($, isEnabled)
-    return { text: isEnabled ? 'inkstyle on' : "inkstyle off: replies use Claude Code's own look" }
-  })
-
-  // A reply's text, drawn from its markdown in the inkstyle palette.
-  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || !(await read($, settingsAtom)).isEnabled) return next(e)
+// A reply's text, drawn from its markdown in the ink palette.
+export async function inkReply(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage'>,
+  next: Next<RenderInput<'AssistantMessage'>>,
+): Promise<RenderNode> {
+  if (!isInkOn(e.surface)) return next(e)
+  try {
     const el = $.ui.resolve({ ...e, surface: 'terminal' as const })
     const { Box, Text } = el
     const room = Math.max(20, (e.viewport?.columns ?? 80) - GUTTER - 1)
@@ -121,11 +108,19 @@ export const register: Register = on => {
         {drawMarkdown(e.props.text, room, el)}
       </Box>
     )
-  })
+  } catch {
+    return next(e)
+  }
+}
 
-  // A tool call's row: a status dot, the tool in purple, what it works on.
-  on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || !(await read($, settingsAtom)).isEnabled) return next(e)
+// A tool call's row: a status dot, the tool in purple, what it works on.
+export async function inkToolRow(
+  $: EngineInterface,
+  e: RenderInput<'ToolUse'>,
+  next: Next<RenderInput<'ToolUse'>>,
+): Promise<RenderNode> {
+  if (!isInkOn(e.surface)) return next(e)
+  try {
     const { Box, Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
     const cwd = await $.session.cwd()
     const row = describe(e.props.tool, e.props.input, cwd)
@@ -155,5 +150,7 @@ export const register: Register = on => {
         </Text>
       </Box>
     )
-  })
+  } catch {
+    return next(e)
+  }
 }

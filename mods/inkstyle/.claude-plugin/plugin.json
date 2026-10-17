@@ -1,6 +1,0 @@
-{
-  "name": "inkstyle",
-  "version": "0.1.0",
-  "description": "Restyles replies and tool rows: orange emphasis, purple structure, orange-headed tables",
-  "types": "./types/index.d.ts"
-}

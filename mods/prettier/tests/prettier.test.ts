@@ -35,7 +35,7 @@ test('widths are shares of the terminal', () => {
   expect(share(100, 75)).toBe(75)
   expect(share(10, 85)).toBe(20)
   // 1 border a side and one space on the left around the widest line.
-  expect(pillWidth(['hello'], 100, 70)).toBe(5 + 3)
+  expect(pillWidth(['hello'], 100, 70)).toBe(5 + 4)
   expect(pillWidth(['x'.repeat(500)], 100, 70)).toBe(70)
 })
 
@@ -152,8 +152,8 @@ test('a typed prompt draws in a purple-bordered pill', async ($, on) => {
   const pill = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
   expect(pill?.props.borderColor).toBe('#7C3AED')
   expect(pill?.props.backgroundColor).toBeUndefined()
-  expect(pill?.props.width).toBe(24 + 3)
-  expect(pill?.props.paddingLeft).toBe(1)
+  expect(pill?.props.width).toBe(24 + 4)
+  expect(pill?.props.paddingX).toBe(1)
   await ui.unmount()
 })
 
@@ -401,10 +401,6 @@ test('a panel is as wide as its longest line, never wider than the room', () => 
 
 test('a fenced block draws as a filled panel with its label and a Copy control', async ($, on) => {
   const clock = mock.clock(on)
-  on('ui.render', { component: 'AssistantMessage' }, async ($, e) => {
-    const { Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
-    return Text({ children: `prose:${e.props.text}` })
-  })
   let copied = ''
   on('ui.copy', async ($, e) => {
     copied = e.text
@@ -417,8 +413,8 @@ test('a fenced block draws as a filled panel with its label and a Copy control',
     props: { text: 'Reverse it:\n\n```python\nprint("hi"[::-1])\n```\n\nDone.', isFirstOfReply: true },
     viewport: fullscreen,
   })
-  expect(await ui.find({ type: 'Text', text: /prose:Reverse it:/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /prose:Done\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Reverse it:/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Done\./ })).toBeDefined()
   const panel = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
   expect(panel?.props.backgroundColor).toBe('#111114')
   expect(panel?.props.borderColor).toBe('#8B7CBD')
@@ -458,12 +454,9 @@ test('prettier draws the spinner itself, in purple', async ($, on) => {
 
 // ---------------------------------------------------------------- tool rows
 
-test("an edit's +n −n is drawn by prettier after the row beneath", async ($, on) => {
+test("an edit's +n −n is drawn by prettier after the row", async ($, on) => {
   mock.clock(on)
-  on('ui.render', { component: 'ToolUse' }, async ($, e) => {
-    const { Text } = $.ui.resolve({ ...e, surface: 'terminal' as const })
-    return Text({ children: 'Edit src/app.ts' })
-  })
+  on('session.cwd', () => ({ value: 'C:/x' }))
   const ui = await $.ui.mount({
     plugin: 'prettier',
     surface: 'terminal',
@@ -598,5 +591,20 @@ test("in fullscreen a copy mark beside the prompt's time copies the prompt alone
   expect(await ui.find({ type: 'Text', text: /^ ⧉ $/ })).toBeDefined()
   await ui.press({ key: 'copy-prompt' })
   expect(copies).toBe(2)
+  await ui.unmount()
+})
+
+test('a prompt a hook beneath rewrote still finds the time it was sent', async ($, on) => {
+  // A hook beneath prettier swaps the text before it enters, as a voice mod does.
+  on('prompt.submit', ($, e) => ({ text: e.text.replace('🎙 listening…', 'run the tests') }))
+  await $.prompt.submit({ text: 'please 🎙 listening…', origin: { kind: 'composer' }, wait: false } as never)
+  const ui = await $.ui.mount({
+    plugin: 'prettier',
+    surface: 'terminal',
+    component: 'UserMessage',
+    props: { text: 'please run the tests', origin: { kind: 'composer' }, isExpanded: false },
+    viewport,
+  })
+  expect(await ui.find({ type: 'Text', text: /^\d\d:\d\d$/ })).toBeDefined()
   await ui.unmount()
 })

@@ -14,6 +14,7 @@ export const PURPLE_LIGHT = '#C4B5FD'
 export const LAVENDER = '#D8B4FE'
 export const WHITE = '#FFFFFF'
 export const TABLE_HEAD = '#EA580C'
+export const TABLE_FRAME = '#FDBA74'
 export const ZEBRA = '#262626'
 export const RULE = '#3F3F46'
 export const BLACK = '#000000'
@@ -134,25 +135,6 @@ function width(text: string): number {
       : 1
   }
   return n
-}
-
-// How many rows a cell's text takes when word-wrapped at `room` columns.
-export function wrappedRows(text: string, room: number): number {
-  let rows = 1
-  let used = 0
-  for (const word of plainText(text).split(/\s+/).filter(w => w !== '')) {
-    const w = width(word)
-    if (used === 0) {
-      rows += Math.max(0, Math.ceil(w / room) - 1)
-      used = w % room === 0 ? room : w % room
-    } else if (used + 1 + w <= room) {
-      used += 1 + w
-    } else {
-      rows += Math.ceil(w / room)
-      used = w % room === 0 ? room : w % room
-    }
-  }
-  return rows
 }
 
 // ---------------------------------------------------------------- blocks
@@ -331,57 +313,93 @@ const HEADINGS: Record<number, { color: string; underline?: boolean }> = {
   3: { color: TABLE_HEAD },
 }
 
+// Cell padding: one column a side, and a blank row above each body row's text.
+// The header has no blank rows.
+const PAD_X = 1
+const PAD_TOP = 1
+// No column takes more than this share of the reply's width.
+const MAX_SHARE = 0.3
+
 function drawTable(b: Extract<Block, { kind: 'table' }>, room: number, el: El): RenderNode {
   const { Box, Text } = el
   const count = Math.max(b.head.length, ...b.rows.map(r => r.length))
+  const most = Math.max(3, Math.floor(room * MAX_SHARE) - PAD_X * 2)
   const widths: number[] = []
   for (let c = 0; c < count; c++) {
-    widths.push(Math.max(3, width(b.head[c] ?? ''), ...b.rows.map(r => width(r[c] ?? ''))))
+    widths.push(Math.min(most, Math.max(3, width(b.head[c] ?? ''), ...b.rows.map(r => width(r[c] ?? '')))))
   }
-  // Each cell has one cell of padding a side and one column rule between
-  // cells; shrink the widest column until the table fits.
-  while (widths.reduce((a, w) => a + w + 2, 0) + count - 1 > room) {
+  // Each cell has its padding a side, with a rule between cells and one at
+  // each edge; shrink the widest column until the table fits.
+  while (widths.reduce((a, w) => a + w + PAD_X * 2, 0) + count + 1 > room) {
     let at = 0
     for (let c = 1; c < count; c++) if ((widths[c] ?? 0) > (widths[at] ?? 0)) at = c
-    if ((widths[at] ?? 0) <= 6) break
+    if ((widths[at] ?? 0) <= 3) break
     widths[at] = (widths[at] ?? 0) - 1
   }
   const justify = (a: Align | undefined) =>
     a === 'right' ? 'flex-end' : a === 'center' ? 'center' : 'flex-start'
 
-  // The rule between columns spans the row's full height, so a row whose
-  // cells wrap keeps an unbroken line.
+  // A rule floats in a column that stretches to the row's height and cuts it
+  // there, so it spans however tall the row wraps. It holds a line per
+  // character of the longest cell, more than any wrap of it needs.
+  const rule = (lines: string, color: string) => (
+    <Box width={1} flexShrink={0} overflow="hidden">
+      <Box position="absolute" top={0} left={0} width={1}>
+        <Text color={color}>{lines}</Text>
+      </Box>
+    </Box>
+  )
+
   const row = (values: string[], isHead: boolean, bg: string | undefined) => {
-    const height = Math.max(1, ...widths.map((w, c) => wrappedRows(values[c] ?? '', w)))
-    const rule = Array.from({ length: height }, () => '│').join('\n')
+    const tallest = Math.max(1, ...values.map(v => width(v))) + PAD_TOP
+    const lines = Array.from({ length: tallest }, () => '│').join('\n')
     const cellsOut: RenderNode[] = []
     widths.forEach((w, c) => {
-      if (c > 0) {
-        cellsOut.push(
-          <Box width={1} flexShrink={0}>
-            <Text color={isHead ? BLACK : ORANGE}>{rule}</Text>
-          </Box>,
-        )
-      }
+      if (c > 0) cellsOut.push(rule(lines, isHead ? BLACK : ORANGE))
       cellsOut.push(
-        <Box width={w + 2} paddingX={1} justifyContent={justify(b.align[c])}>
+        <Box width={w + PAD_X * 2} paddingX={PAD_X} paddingTop={isHead ? 0 : PAD_TOP} justifyContent={justify(b.align[c])}>
           <Text bold={isHead} color={isHead ? WHITE : undefined} backgroundColor={bg} wrap="wrap">
             {inline(values[c] ?? '', isHead ? { bold: WHITE, color: WHITE } : { bold: ORANGE_LIGHT }, el)}
           </Text>
         </Box>,
       )
     })
+    // The fill stays inside the frame: the edges sit outside the filled Box.
     return (
-      <Box flexDirection="row" backgroundColor={bg}>
-        {cellsOut}
+      <Box flexDirection="row">
+        {rule(lines, TABLE_FRAME)}
+        <Box flexDirection="row" backgroundColor={bg}>
+          {cellsOut}
+        </Box>
+        {rule(lines, TABLE_FRAME)}
       </Box>
     )
   }
+
+  // The bottom edge: a run of ─ under each column, laid out as the cells are
+  // so it shrinks with them, and cut to one row.
+  const runs: RenderNode[] = []
+  widths.forEach((w, c) => {
+    if (c > 0) runs.push(<Text color={TABLE_FRAME}>┴</Text>)
+    runs.push(
+      <Box width={w + PAD_X * 2} height={1} overflow="hidden">
+        <Text color={TABLE_FRAME}>{'─'.repeat(w + PAD_X * 2)}</Text>
+      </Box>,
+    )
+  })
+  const bottom = (
+    <Box flexDirection="row">
+      <Text color={TABLE_FRAME}>└</Text>
+      <Box flexDirection="row">{runs}</Box>
+      <Text color={TABLE_FRAME}>┘</Text>
+    </Box>
+  )
 
   return (
     <Box flexDirection="column">
       {row(b.head, true, TABLE_HEAD)}
       {b.rows.map((r, n) => row(r, false, n % 2 === 1 ? ZEBRA : undefined))}
+      {bottom}
     </Box>
   )
 }

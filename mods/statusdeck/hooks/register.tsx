@@ -24,7 +24,7 @@ const cacheAtom = atom({ plugin: 'statusdeck', key: 'cache' } as const, {
 const clockAtom = atom({ plugin: 'statusdeck', key: 'clock' } as const, { now: 0 } as Clock)
 const panesSummary = { plugin: 'panes', key: 'summary' } as const
 
-// Palette shared with inkstyle and panes.
+// Palette shared with prettier and panes.
 const PILL_BG = '#202C34'
 const PILL_LABEL = '#D4DCE2'
 const PILL_TIMER = '#A7B3BD'

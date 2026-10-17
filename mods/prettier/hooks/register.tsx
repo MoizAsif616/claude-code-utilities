@@ -19,7 +19,7 @@ import {
   PANEL_FILL,
   PANEL_LABEL,
   PANEL_PAD_X,
-  PILL_PAD_LEFT,
+  PILL_PAD,
   PROMPT_COPIED,
   PROMPT_COPY,
   PURPLE,
@@ -56,6 +56,7 @@ import {
   toolLabel,
   untab,
 } from './layout'
+import { inkReply, inkToolRow } from './ink'
 import { COMMANDS, DEFAULTS, EXPAND_HINT, applyArgs, describeAll, describeSection, mergeSettings } from './settings'
 import type { Section } from './settings'
 
@@ -270,7 +271,13 @@ export const register: Register = on => {
     const kind = e.origin.kind
     if ((kind === 'composer' || kind === 'bridge') && e.command === undefined && e.isMeta !== true) {
       const at = Date.now()
-      await update($, promptsAtom, prompts => [...prompts, { text: e.text, at }].slice(-MAX_PROMPTS))
+      // Kept as it entered, after any hook beneath rewrote it (a placeholder
+      // swapped for its text, say), so the row it draws as finds its time.
+      const entered = await next(e)
+      if (entered.drop === undefined) {
+        await update($, promptsAtom, prompts => [...prompts, { text: entered.text, at }].slice(-MAX_PROMPTS))
+      }
+      return entered
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -325,9 +332,12 @@ export const register: Register = on => {
   // ---------------------------------------------------------------- drawing
   //
   // LOAD ORDER: prettier must load before any mod that draws these rows itself
-  // without calling next (inkstyle does, for replies and tool rows). Such a mod
-  // ends the chain, so a hook beneath it never runs and the width is lost. List
-  // prettier first in CLAUDE_CODE_PLUGIN_DIRS; see README.md.
+  // without calling next. Such a mod ends the chain, so a hook beneath it never
+  // runs and the width is lost. List prettier first in CLAUDE_CODE_PLUGIN_DIRS;
+  // see README.md.
+  //
+  // Replies and tool rows draw in the colours (ink.tsx) where the
+  // layout asks for the row beneath it; with the colours off, that is next.
 
   // A user-role row. The person's own prompt is a purple-bordered pill on the right
   // with its time under it; a row someone else sent (a background task, another
@@ -351,7 +361,7 @@ export const register: Register = on => {
 
     if (isOwn) {
       const p = settings.prompt
-      const room = Math.max(8, Math.floor((columns * p.width) / 100) - PILL_PAD_LEFT - 2)
+      const room = Math.max(8, Math.floor((columns * p.width) / 100) - PILL_PAD * 2 - 2)
       const folded = capText(text, room, p.lines)
       const capped = isExpanded || isOpen ? { shown: text, hidden: 0 } : folded
       const more = `${folded.hidden} more ${folded.hidden === 1 ? 'line' : 'lines'}`
@@ -375,7 +385,7 @@ export const register: Register = on => {
             flexShrink={0}
             borderStyle="round"
             borderColor={PILL_BORDER}
-            paddingLeft={PILL_PAD_LEFT}
+            paddingX={PILL_PAD}
           >
             <Text wrap="wrap">{capped.shown}</Text>
             {hint !== undefined &&
@@ -442,7 +452,7 @@ export const register: Register = on => {
     const width = share(e.viewport?.columns ?? 80, settings.response.width)
     const parts = splitFences(e.props.text)
     if (!parts.some(p => p.kind === 'code')) {
-      const inner = await next(e)
+      const inner = await inkReply($, e, next)
       if (hasEngine(inner)) return inner
       return (
         <Box flexDirection="column" width={width}>
@@ -451,8 +461,8 @@ export const register: Register = on => {
       )
     }
 
-    // Prose goes on to the mods beneath (inkstyle's colours), one piece at a
-    // time; each fenced block is a filled panel of prettier's own.
+    // Prose draws in the colours (or goes on to the mods beneath), one
+    // piece at a time; each fenced block is a filled panel of prettier's own.
     const canClick = e.viewport?.isFullscreen === true
     const room = width - ROW_GUTTER
     const drawn = []
@@ -460,7 +470,7 @@ export const register: Register = on => {
     let isFirst = e.props.isFirstOfReply
     for (const part of parts) {
       if (part.kind === 'prose') {
-        drawn.push(await next({ ...e, props: { ...e.props, text: part.text, isFirstOfReply: isFirst } }))
+        drawn.push(await inkReply($, { ...e, props: { ...e.props, text: part.text, isFirstOfReply: isFirst } }, next))
         isFirst = false
         continue
       }
@@ -503,12 +513,12 @@ export const register: Register = on => {
         {drawn}
       </Box>
     )
-  })
+  }).catch(($, e, next) => inkReply($, e, next))
 
   // A tool call's row. A finished edit or new file is one row of its own,
   // `▸ Edit hooks/app.ts +12 −3`, that a click opens to its diff and closes;
-  // its result row then draws nothing. Any other row is the one beneath
-  // (inkstyle's or the engine's), held to the response width, with an edit's
+  // its result row then draws nothing. Any other row is the coloured
+  // one (or the one beneath), held to the response width, with an edit's
   // `+12 −3` after it.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
@@ -552,7 +562,7 @@ export const register: Register = on => {
       ? undefined
       : await foldedDiff($, { tool, id: tool_use_id, output, isErrored, isRunning }, isFullscreen)
     if (diff === undefined) {
-      const inner = await next(e)
+      const inner = await inkToolRow($, e, next)
       if (hasEngine(inner)) return inner
       // A failed edit changed nothing, so it has no count.
       const delta = isErrored ? undefined : inputDelta(tool, e.props.input)
@@ -594,7 +604,7 @@ export const register: Register = on => {
         )}
       </Box>
     )
-  })
+  }).catch(($, e, next) => inkToolRow($, e, next))
 
   // A run of reads, searches or commands, folded to one line. A click on it (fullscreen)
   // opens the engine's rows under it and closes them again; ctrl+o, or

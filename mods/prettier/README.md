@@ -1,8 +1,9 @@
 # prettier
 
-Chat layout for the Claude Code terminal:
+Chat layout and colours for the Claude Code terminal.
 
-- **Your prompts:** a pill with a rounded purple border (no fill, one space of padding on the left) on the right, at most 70% of the
+
+- **Your prompts:** a pill with a rounded purple border (no fill, one space of padding on each side) on the right, at most 70% of the
   terminal wide, with the time you sent it under it. A long prompt shows its first 6
   lines, then `… 14 more lines · ctrl+o to see all`. In fullscreen, `⧉` beside the time (same
   grey) copies that prompt's text alone and reads a green `✓` for 3.5 seconds.
@@ -31,6 +32,16 @@ Chat layout for the Claude Code terminal:
 - **Spinner:** drawn whole by prettier: a purple animated `⠋` and Claude Code's word, or the tool
   running now, `⠋ ▸ running Bash…`.
 
+### Colours
+
+- **Replies:** orange headings and bold, lavender links, purple list and quote markers, and tables
+  framed in light orange lines, with orange headers, striped rows, a little padding in each cell,
+  column lines that run the full height of a wrapped row, and no column wider than 30% of the reply.
+- **Tool-call rows:** a status dot (purple when done, light purple while running, red when it
+  failed, grey when interrupted), the tool's name in purple and what it worked on in grey.
+
+`/prettier on|off` turns the layout and colours on or off. The choice is kept across sessions.
+
 ### Seeing the details
 
 **Click to toggle (fullscreen mode).** Every compact row opens and closes on a click, marked `▸`
@@ -49,7 +60,7 @@ A folded prompt or message says so; the first session after installing shows a o
 
 | Command | Settings (defaults) |
 | --- | --- |
-| `/prettier` | lists the commands; `on`, `off`, `reset` (every setting to its default) |
+| `/prettier` | lists the commands; `on`, `off` (layout and colours together), `reset` (every setting to its default) |
 | `/prettier-prompt` | `width 70` (% of the terminal), `lines 6` (shown before folding), `time on` |
 | `/prettier-response` | `width 85` (% of the terminal), `fold on` (fold reads and searches) |
 | `/prettier-code` | `width 75` (% of the terminal, for diffs) |
@@ -64,23 +75,23 @@ result and would hide the output for good.
 
 ## Load order: prettier goes FIRST
 
-> **For Claude or anyone installing this mod:** prettier must be loaded **before every other mod**,
-> in particular before `inkstyle`. Otherwise the 85% width silently does nothing.
+> **For Claude or anyone installing this mod:** prettier must be loaded **before every other mod**.
+> Otherwise the 85% width can silently do nothing. 
 
 ### Why
 
 Mods hook the same drawing in a chain: the first mod loaded is the outermost and calls `next(e)`
 to reach the ones beneath it. prettier only *wraps* what is beneath it:
 
-- **Replies and tool rows:** `inkstyle` draws every reply and tool row itself (to color them) and
-  never calls `next(e)`. A mod loaded after inkstyle is never reached for those, so prettier's 85%
-  box is never applied. Loaded first, prettier wraps inkstyle's colored rows in the 85% box.
+- **Replies and tool rows:** a mod that draws a reply or tool row itself and never calls
+  `next(e)` ends the chain there. Loaded after such a mod, prettier is never reached for those rows,
+  so its 85% box is never applied. Loaded first, prettier wraps what it draws in the 85% box.
 
 The spinner is prettier's alone (statusdeck no longer draws it), so its place in the order does
 not matter for the spinner.
 
-Neither mod imports or reads the other: they are independent in code, and only the order connects
-them. In the wrong order nothing breaks: replies go back to full width.
+prettier imports and reads no other mod; only the order connects them. In the wrong order nothing
+breaks: replies go back to full width.
 
 ### How
 
@@ -90,14 +101,14 @@ relies on Claude Code loading the list in order: confirm it with the check below
 
 ```powershell
 [Environment]::SetEnvironmentVariable('CLAUDE_CODE_PLUGIN_DIRS',
-  "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\statusdeck;$env:USERPROFILE\.claude\mods\inkstyle",
+  "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\statusdeck;$env:USERPROFILE\.claude\mods\hark",
   'User')
 ```
 
 On macOS/Linux, in your shell profile:
 
 ```sh
-export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/inkstyle"
+export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/hark"
 ```
 
 Then restart Claude Code. The variable is read at startup, and on Windows a terminal only sees a
@@ -115,9 +126,6 @@ Ask Claude anything with a long answer. If the reply wraps at about 85% of the t
 is right. If it runs the full width, prettier is not first.
 
 ## Known limit
-
-inkstyle sizes tables for the full terminal width. Inside the 85% box their columns are squeezed
-to fit, so a wide table's `│` column lines may come out shorter than its wrapped cells.
 
 Rows Claude Code draws itself (a Bash or Read result, a tool group) are wrapped in the 85% box
 but sized by Claude Code; if one of them still runs the full width, it needs redrawing in prettier

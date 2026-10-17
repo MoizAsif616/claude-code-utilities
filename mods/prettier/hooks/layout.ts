@@ -1,6 +1,6 @@
 import type { Prompt, Timing, Turn } from '../types'
 
-// inkstyle's palette, so the two mods read as one; prettier's own dim fills.
+// the reply colours' palette; prettier's own dim fills.
 export const PURPLE = '#A855F7'
 export const PURPLE_LIGHT = '#C4B5FD'
 export const GREY = '#71717A'
@@ -8,11 +8,11 @@ export const RED = '#EF4444'
 export const GREEN = '#22C55E'
 export const CARD_BORDER = '#3F3F46'
 
-// The prompt pill's rounded border: inkstyle's deep structure purple.
+// The prompt pill's rounded border: the deep structure purple.
 export const PILL_BORDER = '#7C3AED'
 
-// One space inside the pill on the left; the text runs to the border on the right.
-export const PILL_PAD_LEFT = 1
+// One space inside the pill on each side, between the text and the border.
+export const PILL_PAD = 1
 export const RESULT_GUTTER = '  ⎿  '
 export const ROW_GUTTER = 2
 export const EXPAND_KEY = 'ctrl+o'
@@ -60,11 +60,11 @@ export function share(columns: number, percent: number): number {
   return Math.max(20, Math.floor((columns * percent) / 100))
 }
 
-// The pill's outer width: its widest line plus the left space and border, no wider
+// The pill's outer width: its widest line plus a space and the border each side, no wider
 // than `percent` of the terminal.
 export function pillWidth(lines: readonly string[], columns: number, percent: number): number {
   const widest = Math.max(1, ...lines.map(cellWidth))
-  return Math.min(widest + PILL_PAD_LEFT + 2, Math.max(12, Math.floor((columns * percent) / 100)))
+  return Math.min(widest + PILL_PAD * 2 + 2, Math.max(12, Math.floor((columns * percent) / 100)))
 }
 
 // ---------------------------------------------------------------- an edit's count
