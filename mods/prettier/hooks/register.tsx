@@ -15,7 +15,6 @@ import {
   GREY,
   PILL_BORDER,
   PANEL_BORDER,
-  PANEL_CHIP,
   PANEL_FILL,
   PANEL_LABEL,
   PANEL_PAD_X,
@@ -488,10 +487,11 @@ export const register: Register = on => {
             borderStyle="round"
             borderColor={PANEL_BORDER}
             backgroundColor={PANEL_FILL}
-            paddingX={PANEL_PAD_X}
           >
-            <Box flexDirection="row" justifyContent="space-between">
-              <Text color={PANEL_LABEL} backgroundColor={PANEL_CHIP}>{` ${label} `}</Text>
+            <Box flexDirection="row" justifyContent="space-between" paddingX={PANEL_PAD_X}>
+              <Text color={PANEL_LABEL} backgroundColor={PANEL_FILL}>
+                {label}
+              </Text>
               {canClick ? (
                 <Button plain key={`copy-${block}`} onPress={press => void copyCode($, id, code, press.surface)}>
                   <Text color={isCopied ? GREEN : PANEL_LABEL} backgroundColor={PANEL_FILL}>
@@ -502,7 +502,13 @@ export const register: Register = on => {
                 <Text backgroundColor={PANEL_FILL}> </Text>
               )}
             </Box>
-            <Code source={untab(code)} language={part.language === '' ? undefined : part.language} />
+            {/* The rule under the label and Copy, wall to wall in the border's colour, cut to the panel. */}
+            <Box height={1} overflow="hidden">
+              <Text color={PANEL_BORDER}>{'─'.repeat(width)}</Text>
+            </Box>
+            <Box paddingX={PANEL_PAD_X}>
+              <Code source={untab(code)} language={part.language === '' ? undefined : part.language} />
+            </Box>
           </Box>
         </Box>,
       )

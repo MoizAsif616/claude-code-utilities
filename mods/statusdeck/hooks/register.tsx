@@ -40,9 +40,22 @@ const USED_STOPS = [
 // Blank cells between the parts of the status row.
 const MODE_GAP = 2
 const PILL_GAP = 1
-// The footer's left pad and a margin: a pill row this much narrower than the
-// terminal still fits on one line.
-const FOOTER_SLACK = 4
+// The footer's left pad, the two blanks the engine keeps between the hint and
+// the slot, and one more for the slot's lead: a pill row this much narrower
+// than the terminal still fits on one line.
+const FOOTER_SLACK = 5
+
+// The hint's mode, model and effort in cells, as last drawn, so the status
+// pills know how much of the row is left to them.
+let hintCells = 0
+// While a mode is on the engine draws its own label and " · " before the hint
+// ("⏵⏵ auto mode on · "), and names no mode a hook can read: room for the
+// longest of the shift+tab cycle's, "⏵⏵ accept edits on · ".
+const ENGINE_MODE_CELLS = 21
+// Whether the engine draws that label: the idle hint says ("(shift+tab to
+// cycle)" with a mode on, "? for shortcuts" without), and a working turn's
+// hint ("esc to interrupt") keeps what it said last.
+let isEngineModeOn = false
 const ORANGE = '#F97316'
 const PURPLE = '#A855F7'
 const PURPLE_LIGHT = '#C4B5FD'
@@ -584,7 +597,7 @@ export const register: Register = (on, options) => {
     const cacheText = isWarm ? warmth(remaining) : 'cold'
     const percentText = (p: number | null) => (p === null ? '–' : `${Math.round(p)}%`)
 
-    const pills = [
+    const allPills = [
       usage.fiveHour === null
         ? null
         : { key: '5h', name: '5h', percent: usage.fiveHour.percent, reset: countdown(usage.fiveHour.resetsAt, now) },
@@ -593,6 +606,28 @@ export const register: Register = (on, options) => {
         : { key: '7d', name: '7d', percent: usage.week.percent, reset: countdown(usage.week.resetsAt, now) },
       { key: 'ctx', name: 'ctx', percent: usage.context, reset: '' },
     ].filter(p => p !== null)
+
+    // The left half's width, as the hint last drew it, with the run's time and
+    // tokens counted fresh so they never trail a tick.
+    const run = await read($, runAtom)
+    const runCells = run.isWorking
+      ? MODE_GAP + `⏱ ${elapsed(run.now - run.startedAt)}`.length + 1 + `↓ ${compact(run.tokens)} tok`.length
+      : 0
+    const columns = e.viewport?.columns ?? 80
+    const pillCells = (p: (typeof allPills)[number]) =>
+      p.name.length + 2 + percentText(p.percent).length + (p.reset === '' ? 1 : p.reset.length + 2) + PILL_GAP
+    const cacheCells = (isWarm ? 2 : 1) + 1 + cacheText.length
+    // So the row stays one line: 7d goes first, then ctx, then 5h, then the
+    // cache; each comes back, in reverse, once there is room again.
+    let pills = allPills
+    let showCache = true
+    const fits = () =>
+      hintCells + runCells + pills.reduce((n, p) => n + pillCells(p), 0) + (showCache ? cacheCells : 0) + FOOTER_SLACK <= columns
+    for (const key of ['7d', 'ctx', '5h']) {
+      if (fits()) break
+      pills = pills.filter(p => p.key !== key)
+    }
+    if (!fits()) showCache = false
 
     // Each pill sets its own background on every piece, so nothing bleeds past
     // its closing pad.
@@ -617,24 +652,19 @@ export const register: Register = (on, options) => {
           {gap(`gap-after-${p.key}`, PILL_GAP)}
         </Box>
       )),
-      <Box key="cache" flexDirection="row" flexShrink={0}>
-        <Text color={isWarm ? ORANGE : ICE}>{isWarm ? WARM_ICON : COLD_ICON}</Text>
-        <Text color={CACHE_TIME}>{` ${cacheText}`}</Text>
-      </Box>,
+      showCache && (
+        <Box key="cache" flexDirection="row" flexShrink={0}>
+          <Text color={isWarm ? ORANGE : ICE}>{isWarm ? WARM_ICON : COLD_ICON}</Text>
+          <Text color={CACHE_TIME}>{` ${cacheText}`}</Text>
+        </Box>
+      ),
     ]
 
     // Cells the group takes on one line (⚡ is two wide, ❄ one).
-    const cells =
-      pills.reduce(
-        (n, p) => n + p.name.length + 2 + percentText(p.percent).length + (p.reset === '' ? 1 : p.reset.length + 2) + PILL_GAP,
-        0,
-      ) +
-      (isWarm ? 2 : 1) +
-      1 +
-      cacheText.length
+    const cells = pills.reduce((n, p) => n + pillCells(p), 0) + (showCache ? cacheCells : 0)
     // A row of exactly its words while it fits the terminal; only narrower
     // than that does it wrap, flush right, on the row the engine gives it.
-    const isOneLine = cells + FOOTER_SLACK <= (e.viewport?.columns ?? 80)
+    const isOneLine = cells + FOOTER_SLACK <= columns
     return isOneLine ? (
       <Box key="right" flexDirection="row" flexShrink={0}>
         {parts}
@@ -658,6 +688,11 @@ export const register: Register = (on, options) => {
     const mode = modeOf(e.props.hint)
     const model = prettyModel(controls.model)
     const effort = controls.effort ?? '…'
+    if (/shift\+tab/i.test(e.props.hint)) isEngineModeOn = mode === undefined
+    else if (/\? for shortcuts/i.test(e.props.hint)) isEngineModeOn = false
+    const engineModeCells = isEngineModeOn ? ENGINE_MODE_CELLS : 0
+    hintCells =
+      engineModeCells + (mode === undefined ? 0 : `${mode.glyph} ${mode.label}`.length + MODE_GAP) + model.length + 1 + effort.length
 
     return (
       <Box key="left" flexDirection="row" flexShrink={0}>

@@ -75,17 +75,17 @@ test('a column rule spans its row however the cells wrap, and no column passes 3
   const pinned = (await ui.findAll({ type: 'Box' })).filter(box => box.props.position === 'absolute')
   expect(pinned).toHaveLength(6)
   const rules = await ui.findAll({ type: 'Text', text: /│/ })
-  expect(Math.max(...rules.map(rule => rule.text.split('\n').length))).toBeGreaterThan(long.length)
+  expect(Math.max(...rules.map(rule => rule.text.split('\n').length))).toBeGreaterThanOrEqual(long.length)
   // The reply is 100 columns less its gutter: 30% of that is 29 cells, padding included.
   const cells = (await ui.findAll({ type: 'Box' })).filter(box => box.props.paddingX === 1)
   expect(Math.max(...cells.map(cell => Number(cell.props.width)))).toBeLessThanOrEqual(29)
-  // A blank row above each body row's text, none below; none in the header.
-  expect(cells.map(cell => cell.props.paddingTop)).toEqual([0, 0, 1, 1])
+  // No blank rows: each row sits right under the one before.
+  expect(cells.map(cell => cell.props.paddingTop)).toEqual([0, 0, 0, 0])
   expect(cells.some(cell => cell.props.paddingBottom !== undefined || cell.props.paddingY !== undefined)).toBe(false)
   await ui.unmount()
 })
 
-test('a table is framed: orange rules at both edges, between columns, and along the bottom', async ($, on) => {
+test('a table is framed: header-orange rules at the edges, between columns, under the header, round at the corners', async ($, on) => {
   mock.clock(on)
   const ui = await $.ui.mount({
     plugin: 'prettier',
@@ -93,9 +93,16 @@ test('a table is framed: orange rules at both edges, between columns, and along 
     ...message('| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |'),
   })
   expect(await ui.findAll({ type: 'Text', text: /│/ })).toHaveLength(8)
-  const corners = await ui.findAll({ type: 'Text', text: /^[└┴┘]$/ })
-  expect(corners.map(corner => corner.text)).toEqual(['└', '┴', '┴', '┘'])
-  expect(await ui.findAll({ type: 'Text', text: /^─+$/ })).toHaveLength(3)
+  const corners = await ui.findAll({ type: 'Text', text: /^[╭┬╮├┼┤╰┴╯]$/ })
+  expect(corners.map(corner => corner.text)).toEqual(['╭', '┬', '┬', '╮', '├', '┼', '┼', '┤', '╰', '┴', '┴', '╯'])
+  const runs = await ui.findAll({ type: 'Text', text: /^─+$/ })
+  expect(runs).toHaveLength(9)
+  // One orange for every line; the header has no fill, only bold names.
+  const frame = [...corners, ...runs, ...(await ui.findAll({ type: 'Text', text: /│/ }))]
+  expect(new Set(frame.map(t => t.props.color))).toEqual(new Set(['#EA580C']))
+  const head = await ui.find({ type: 'Text', text: 'a' })
+  expect(head?.props).toMatchObject({ bold: true })
+  expect(head?.props.backgroundColor).toBeUndefined()
   await ui.unmount()
 })
 

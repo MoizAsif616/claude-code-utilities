@@ -12,12 +12,9 @@ export const PURPLE = '#A855F7'
 export const PURPLE_DEEP = '#7C3AED'
 export const PURPLE_LIGHT = '#C4B5FD'
 export const LAVENDER = '#D8B4FE'
-export const WHITE = '#FFFFFF'
 export const TABLE_HEAD = '#EA580C'
-export const TABLE_FRAME = '#FDBA74'
 export const ZEBRA = '#262626'
 export const RULE = '#3F3F46'
-export const BLACK = '#000000'
 
 type Ctx = { bold: string; color?: string }
 
@@ -316,7 +313,7 @@ const HEADINGS: Record<number, { color: string; underline?: boolean }> = {
 // Cell padding: one column a side, and a blank row above each body row's text.
 // The header has no blank rows.
 const PAD_X = 1
-const PAD_TOP = 1
+const PAD_TOP = 0
 // No column takes more than this share of the reply's width.
 const MAX_SHARE = 0.3
 
@@ -355,11 +352,11 @@ function drawTable(b: Extract<Block, { kind: 'table' }>, room: number, el: El): 
     const lines = Array.from({ length: tallest }, () => '│').join('\n')
     const cellsOut: RenderNode[] = []
     widths.forEach((w, c) => {
-      if (c > 0) cellsOut.push(rule(lines, isHead ? BLACK : ORANGE))
+      if (c > 0) cellsOut.push(rule(lines, TABLE_HEAD))
       cellsOut.push(
         <Box width={w + PAD_X * 2} paddingX={PAD_X} paddingTop={isHead ? 0 : PAD_TOP} justifyContent={justify(b.align[c])}>
-          <Text bold={isHead} color={isHead ? WHITE : undefined} backgroundColor={bg} wrap="wrap">
-            {inline(values[c] ?? '', isHead ? { bold: WHITE, color: WHITE } : { bold: ORANGE_LIGHT }, el)}
+          <Text bold={isHead} backgroundColor={bg} wrap="wrap">
+            {inline(values[c] ?? '', { bold: ORANGE_LIGHT }, el)}
           </Text>
         </Box>,
       )
@@ -367,39 +364,44 @@ function drawTable(b: Extract<Block, { kind: 'table' }>, room: number, el: El): 
     // The fill stays inside the frame: the edges sit outside the filled Box.
     return (
       <Box flexDirection="row">
-        {rule(lines, TABLE_FRAME)}
+        {rule(lines, TABLE_HEAD)}
         <Box flexDirection="row" backgroundColor={bg}>
           {cellsOut}
         </Box>
-        {rule(lines, TABLE_FRAME)}
+        {rule(lines, TABLE_HEAD)}
       </Box>
     )
   }
 
-  // The bottom edge: a run of ─ under each column, laid out as the cells are
-  // so it shrinks with them, and cut to one row.
-  const runs: RenderNode[] = []
-  widths.forEach((w, c) => {
-    if (c > 0) runs.push(<Text color={TABLE_FRAME}>┴</Text>)
-    runs.push(
-      <Box width={w + PAD_X * 2} height={1} overflow="hidden">
-        <Text color={TABLE_FRAME}>{'─'.repeat(w + PAD_X * 2)}</Text>
-      </Box>,
+  // The top and bottom edges, rounded at the corners: a run of ─ over or
+  // under each column, laid out as the cells are so it shrinks with them, and
+  // cut to one row.
+  const edge = (left: string, join: string, right: string) => {
+    const runs: RenderNode[] = []
+    widths.forEach((w, c) => {
+      if (c > 0) runs.push(<Text color={TABLE_HEAD}>{join}</Text>)
+      runs.push(
+        <Box width={w + PAD_X * 2} height={1} overflow="hidden">
+          <Text color={TABLE_HEAD}>{'─'.repeat(w + PAD_X * 2)}</Text>
+        </Box>,
+      )
+    })
+    return (
+      <Box flexDirection="row">
+        <Text color={TABLE_HEAD}>{left}</Text>
+        <Box flexDirection="row">{runs}</Box>
+        <Text color={TABLE_HEAD}>{right}</Text>
+      </Box>
     )
-  })
-  const bottom = (
-    <Box flexDirection="row">
-      <Text color={TABLE_FRAME}>└</Text>
-      <Box flexDirection="row">{runs}</Box>
-      <Text color={TABLE_FRAME}>┘</Text>
-    </Box>
-  )
+  }
 
   return (
     <Box flexDirection="column">
-      {row(b.head, true, TABLE_HEAD)}
+      {edge('╭', '┬', '╮')}
+      {row(b.head, true, undefined)}
+      {edge('├', '┼', '┤')}
       {b.rows.map((r, n) => row(r, false, n % 2 === 1 ? ZEBRA : undefined))}
-      {bottom}
+      {edge('╰', '┴', '╯')}
     </Box>
   )
 }

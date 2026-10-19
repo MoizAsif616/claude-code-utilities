@@ -323,7 +323,11 @@ test('below the input only the status row draws: no hints, no mode labels', asyn
 
 test('mode, two spaces, model and effort at the left; the pills and cache one row in the right slot', async ($, on) => {
   await MOUNT_AT($, on)
-  for (const columns of [160, 50]) {
+  const full = ' 5h |42%| 2h00m | 7d |17%| 4d14h | ctx |–| |❄| cold'
+  for (const [columns, pills] of [
+    [160, full],
+    [50, ' 5h |42%| 2h00m |❄| cold'],
+  ] as const) {
     const ui = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...AUTO_HINT, viewport: { columns, rows: 40 } })
     // Exactly as wide as its words: a wider tree squeezes the engine's own
     // mode text before it into the model.
@@ -339,17 +343,23 @@ test('mode, two spaces, model and effort at the left; the pills and cache one ro
     await ui.unmount()
 
     const status = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...STATUS, viewport: { columns, rows: 40 } })
-    expect((await status.findAll({ type: 'Text' })).map(t => t.text).join('|')).toBe(
-      ' 5h |42%| 2h00m | 7d |17%| 4d14h | ctx |–| |❄| cold',
-    )
+    expect((await status.findAll({ type: 'Text' })).map(t => t.text).join('|')).toBe(pills)
     expect((await status.find({ key: 'gap-after-5h' }))?.props).toMatchObject({ width: 1, flexShrink: 0 })
     expect((await status.find({ key: 'right' }))?.props).not.toHaveProperty('flexWrap')
     await status.unmount()
   }
-  // Narrower than the pills, they wrap flush right on the row they are given.
-  const narrow = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...STATUS, viewport: { columns: 30, rows: 40 } })
-  expect((await narrow.find({ key: 'right' }))?.props).toMatchObject({ flexWrap: 'wrap', justifyContent: 'flex-end' })
-  await narrow.unmount()
+  // Short of room, 7d goes first, then ctx, then 5h, then the cache: the row
+  // never wraps to a second line.
+  for (const [columns, pills] of [
+    [70, ' 5h |42%| 2h00m | ctx |–| |❄| cold'],
+    [40, '❄| cold'],
+    [30, ''],
+  ] as const) {
+    const narrow = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...STATUS, viewport: { columns, rows: 40 } })
+    expect((await narrow.findAll({ type: 'Text' })).map(t => t.text).join('|')).toBe(pills)
+    expect((await narrow.find({ key: 'right' }))?.props).not.toHaveProperty('flexWrap')
+    await narrow.unmount()
+  }
 })
 
 test('pill colours: fixed background, label and timer, percentage on the used gradient', async ($, on) => {
@@ -366,4 +376,29 @@ test('pill colours: fixed background, label and timer, percentage on the used gr
   const left = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...AUTO_HINT, viewport: { columns: 160, rows: 40 } })
   expect((await left.find({ type: 'Text', text: 'Opus 5.5' }))?.props).toMatchObject({ color: '#F97316' })
   await left.unmount()
+})
+
+test("the engine's own mode label before the hint counts against the pills' room, and a working hint keeps it", async ($, on) => {
+  await MOUNT_AT($, on)
+  const pillsAt = async (columns: number) => {
+    const status = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...STATUS, viewport: { columns, rows: 40 } })
+    const text = (await status.findAll({ type: 'Text' })).map(t => t.text).join('|')
+    await status.unmount()
+    return text
+  }
+  // This build draws "⏵⏵ auto mode on · " itself and hands the hook only the rest.
+  const idle = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...hint('(shift+tab to cycle)') })
+  await idle.unmount()
+  expect(await pillsAt(85)).toBe(' 5h |42%| 2h00m | 7d |17%| 4d14h | ctx |–| |❄| cold')
+  expect(await pillsAt(84)).toBe(' 5h |42%| 2h00m | ctx |–| |❄| cold')
+  expect(await pillsAt(62)).toBe(' 5h |42%| 2h00m |❄| cold')
+  expect(await pillsAt(61)).toBe('❄| cold')
+  expect(await pillsAt(46)).toBe('')
+  const working = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...hint('esc to interrupt') })
+  await working.unmount()
+  expect(await pillsAt(84)).toBe(' 5h |42%| 2h00m | ctx |–| |❄| cold')
+  // With no mode on there is no label, and the room comes back.
+  const plain = await $.ui.mount({ plugin: 'statusdeck', surface: 'terminal', ...hint('? for shortcuts') })
+  await plain.unmount()
+  expect(await pillsAt(84)).toBe(' 5h |42%| 2h00m | 7d |17%| 4d14h | ctx |–| |❄| cold')
 })

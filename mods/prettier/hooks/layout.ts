@@ -21,8 +21,6 @@ export const EXPAND_KEY = 'ctrl+o'
 export const PANEL_FILL = '#111114'
 export const PANEL_BORDER = '#8B7CBD'
 export const PANEL_LABEL = '#B9A7E8'
-// The language chip's fill, a shade lighter than the panel's.
-export const PANEL_CHIP = '#2E2A3A'
 export const PANEL_PAD_X = 1
 export const COPY_LABEL = '⧉ Copy'
 export const COPIED_LABEL = 'Copied!'

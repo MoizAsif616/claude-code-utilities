@@ -418,8 +418,11 @@ test('a fenced block draws as a filled panel with its label and a Copy control',
   const panel = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
   expect(panel?.props.backgroundColor).toBe('#111114')
   expect(panel?.props.borderColor).toBe('#8B7CBD')
-  const chip = await ui.find({ type: 'Text', text: / python / })
-  expect(chip?.props.backgroundColor).toBe('#2E2A3A')
+  // The label sits on the panel's own fill, and a rule in the border's colour
+  // parts it and Copy from the code.
+  const label = await ui.find({ type: 'Text', text: 'python' })
+  expect(label?.props.backgroundColor).toBe('#111114')
+  expect((await ui.find({ type: 'Text', text: /^─+$/ }))?.props.color).toBe('#8B7CBD')
   expect((await ui.find({ type: 'Code' }))?.props.source).toBe('print("hi"[::-1])')
   await ui.press({ key: 'copy-1' })
   expect(copied).toBe('print("hi"[::-1])')
