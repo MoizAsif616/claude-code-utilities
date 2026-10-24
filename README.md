@@ -1,17 +1,30 @@
 # claude-code-utilities
 
 Mods for Claude Code. Each mod has one job and works on its own: none imports, reads or calls
-another.
+another. They are sorted by where they run:
 
-| Mod | Its job |
+| Folder | What goes there |
 | --- | --- |
-| `mods/statusdeck` | The status row under the prompt: live stats and their colours |
-| `mods/prettier` | The layout and colours of the whole chat: prompts, replies, code, tool rows, the spinner |
-| `mods/hark` | Voice input: speak your prompt, transcribed on your own computer |
+| `mods/cli` | Mods for the Claude Code CLI (the terminal) only |
+| `mods/desktop` | Mods for the Claude Code desktop app only (none yet) |
+| `mods/both` | Mods that work in both, with a behaviour for each |
 
-Copy the mods into `~/.claude/mods`, then point Claude Code at them with the `CLAUDE_CODE_PLUGIN_DIRS`
-environment variable (see [Load order](#load-order)).
-Restart Claude Code after installing.
+| Mod | Runs in | Its job |
+| --- | --- | --- |
+| `mods/both/statusdeck` | CLI and desktop | Live stats: a status row under the prompt in the CLI, a status band above the prompt in the desktop app |
+| `mods/cli/prettier` | CLI | The layout and colours of the whole chat: prompts, replies, code, tool rows, the spinner |
+| `mods/cli/hark` | CLI | Voice input: speak your prompt, transcribed on your own computer |
+
+The two kinds load differently:
+
+- **CLI mods** are copied into `~/.claude/mods` and named in the `CLAUDE_CODE_PLUGIN_DIRS`
+  environment variable, set in your shell's profile. Only a `claude` started from that shell sees it,
+  so the desktop app never loads them.
+- **Mods for both (and for the desktop)** are installed as plugins: the desktop app doesn't read your
+  shell's profile, so `CLAUDE_CODE_PLUGIN_DIRS` can't reach it. `mods/both` is a plugin marketplace;
+  install from it once and the mod loads in the CLI and the desktop app alike.
+
+Restart Claude Code (and the desktop app) after installing.
 
 ## Install
 
@@ -19,34 +32,33 @@ Restart Claude Code after installing.
 
 ```powershell
 git clone https://github.com/MoizAsif616/claude-code-utilities.git
+# CLI mods: copied to ~/.claude/mods and named in your PowerShell profile (terminal only)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\mods" | Out-Null
-Copy-Item -Recurse -Force .\claude-code-utilities\mods\* "$env:USERPROFILE\.claude\mods\"
-[Environment]::SetEnvironmentVariable('CLAUDE_CODE_PLUGIN_DIRS',
-  "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\statusdeck;$env:USERPROFILE\.claude\mods\hark",
-  'User')
+Copy-Item -Recurse -Force .\claude-code-utilities\mods\cli\* "$env:USERPROFILE\.claude\mods\"
+Add-Content $PROFILE '$env:CLAUDE_CODE_PLUGIN_DIRS = "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\hark"'
+# Mods for both: installed as plugins from the mods/both marketplace
+claude plugin marketplace add .\claude-code-utilities\mods\both
+claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
-Then **quit and reopen your whole terminal app** (Windows Terminal, VS Code, any IDE), not just the
-tab: a new tab inherits the app's old copy of the environment and won't see the variable. Check it
-before starting `claude`:
+Open a new PowerShell window before starting `claude`, and check the variable:
 
 ```powershell
 echo $env:CLAUDE_CODE_PLUGIN_DIRS   # must start with ...\mods\prettier
 ```
 
-Or refresh a single terminal by hand:
-
-```powershell
-$env:CLAUDE_CODE_PLUGIN_DIRS = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_PLUGIN_DIRS','User')
-```
+Don't set `CLAUDE_CODE_PLUGIN_DIRS` as a Windows user environment variable: every program sees
+those, the desktop app included, so the CLI mods would load there too.
 
 ### Linux (Ubuntu)
 
 ```bash
 git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
-cp -r claude-code-utilities/mods/* ~/.claude/mods/
-echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/hark"' >> ~/.bashrc
+cp -r claude-code-utilities/mods/cli/* ~/.claude/mods/
+echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/hark"' >> ~/.bashrc
+claude plugin marketplace add ./claude-code-utilities/mods/both
+claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
 Open a new shell (or `source ~/.bashrc`) before starting `claude`.
@@ -56,23 +68,33 @@ Open a new shell (or `source ~/.bashrc`) before starting `claude`.
 ```bash
 git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
-cp -R claude-code-utilities/mods/* ~/.claude/mods/
-echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/statusdeck:$HOME/.claude/mods/hark"' >> ~/.zshrc
+cp -R claude-code-utilities/mods/cli/* ~/.claude/mods/
+echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/hark"' >> ~/.zshrc
+claude plugin marketplace add ./claude-code-utilities/mods/both
+claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
 Open a new shell (or `source ~/.zshrc`) before starting `claude`.
 
+A plugin installed from a folder is read from that folder: keep the clone where it is, and an edit
+there reaches Claude Code after `/reload-plugins`.
+
 ## Load order
 
-The three mods never draw the same thing, so their order in `CLAUDE_CODE_PLUGIN_DIRS` doesn't matter
-(`;`-separated on Windows, `:` on Linux and macOS). The install commands list prettier first.
+The three mods never draw the same thing, so their order doesn't matter (`;`-separated on Windows,
+`:` on Linux and macOS in `CLAUDE_CODE_PLUGIN_DIRS`). The install commands list prettier first.
 
-The one row hark shares is the one above the prompt: statusdeck draws its panes chips there (only
-with the panes mod), and whichever of the two is listed first shows when both have something to draw.
-hark also doesn't affect prettier's times: it keeps each prompt as it was finally sent, so the time
-under a prompt you sent while recording is right.
+The one row hark shares is the one above the prompt: statusdeck draws its panes chips there in the
+CLI (only with the panes mod), and whichever of the two loads first shows when both have something
+to draw. hark also doesn't affect prettier's times: it keeps each prompt as it was finally sent, so
+the time under a prompt you sent while recording is right.
 
 ## statusdeck
+
+One mod with two looks: a status row under the prompt in the CLI, and a status band above the prompt
+in the desktop app. Each draws only where it belongs.
+
+### In the CLI
 
 The row under the prompt, with every colour in it:
 
@@ -82,11 +104,37 @@ The row under the prompt, with every colour in it:
   coloured from blue (little used) through green and amber to red (nearly full), with the time
   until a window resets.
 - **Cache warmth:** `⚡` and a countdown while the prompt cache is warm, `❄` once it has gone cold.
-  The cache lifetime (`1h` on a Claude subscription, `5m` with an API key) is a plugin option.
 - **While Claude works:** the turn's running time and live output tokens after the effort.
+- **Always one line:** when the terminal is too narrow, pills drop in this order: 7d, ctx, 5h, then
+  the cache. They come back as room returns.
 - **Pane chips** above the prompt when the panes mod is installed.
 
-statusdeck has no commands of its own. It doesn't draw the spinner; prettier does.
+### In the desktop app
+
+A band right above the prompt, in the app's theme colours, so it reads in light and dark mode. The
+bar under the prompt is left to the app: it draws a mod's content there only as plain text.
+
+- **Clawd:** a small pixel mascot showing what the session is doing: idle, working, done (for 5 s),
+  needs you, stopped, or asleep after 5 minutes idle.
+- **Turn pill:** the elapsed time and output tokens while a turn runs.
+- **Git pill:** the branch and the changed-file count, inside a git repository only.
+- **Context gauge:** a small disc that fills in 10% steps, its colour changing at each step. Hover it
+  for the tokens used out of the window size.
+- **Cache timer:** how long the prompt cache stays warm, from green to red; a red `❄` when cold.
+- **Context panel** (the `☰` at the right end, or `/statusdeck-context`): check or uncheck skills and
+  MCP tools. After **Apply**, whatever is unchecked is hidden from Claude and refused if Claude calls
+  it anyway. The desktop app's own `ccd_*` tools can't be turned off. Pending changes apply on their
+  own at the next `/clear` or `/compact`.
+- The time and tokens line under each answer is hidden: the turn pill shows the same.
+
+The desktop band is adapted from the deskdeck mod; the 5-hour and 7-day pills are left out of it.
+
+### Option
+
+The cache lifetime (`1h` on a Claude subscription, `5m` with an API key) is a plugin option:
+`/plugin configure statusdeck@claude-code-utilities` in a terminal session.
+
+statusdeck doesn't draw the spinner; prettier does.
 
 ## prettier
 
@@ -156,7 +204,7 @@ what's allowed.
 - The dim `● <mod>: ...` lines Claude Code prints when a mod loads, reloads or fails are Claude
   Code's own; no mod can restyle them.
 
-More detail is in [`mods/prettier/README.md`](mods/prettier/README.md).
+More detail is in [`mods/cli/prettier/README.md`](mods/cli/prettier/README.md).
 
 ## hark
 
@@ -221,18 +269,19 @@ Everything hark downloads lives in `~/.claude/hark`. Delete that folder to remov
 
 ## Update
 
-Pull the latest changes and copy the mods again:
+Pull the latest changes, then copy the CLI mods again and update statusdeck:
 
 ```bash
 cd claude-code-utilities && git pull
-cp -R mods/* ~/.claude/mods/
+cp -R mods/cli/* ~/.claude/mods/
+claude plugin update statusdeck@claude-code-utilities
 ```
 
-On Windows, run `git pull` and repeat the `Copy-Item` line from the install section. The
-environment variable only needs setting once.
+On Windows, run `git pull` and repeat the `Copy-Item` line from the install section. The profile
+line only needs adding once. In a running session, `/reload-plugins` picks up the new statusdeck.
 
 ## Notes
 
 - The `types/` and `tests/` folders inside each mod are for development and aren't needed to run the mods.
-- statusdeck and prettier are tested on Windows. The code has nothing Windows-specific, so they should work on Linux and macOS, but I haven't verified that.
+- statusdeck (CLI and desktop app) and prettier are tested on Windows. The code has nothing Windows-specific, so they should work on Linux and macOS, but I haven't verified that.
 - hark is tested on Linux (Ubuntu). Its code handles Windows and macOS paths, but it hasn't been tried there.

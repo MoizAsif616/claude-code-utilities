@@ -2,6 +2,19 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionRateLimit, Timer } from 'claude-code'
 
 import type { Cache, Clock, Controls, Run, Usage, Window } from '../types'
+import {
+  deskAfterCompact,
+  deskBand,
+  deskEnd,
+  deskMeasure,
+  deskSessionStart,
+  deskStepCounted,
+  deskStepEnd,
+  deskStepPending,
+  deskTurnComplete,
+  deskTurnStart,
+  registerDesk,
+} from './desk'
 
 const usageAtom = atom({ plugin: 'statusdeck', key: 'usage' } as const, {
   fiveHour: null,
@@ -375,6 +388,10 @@ async function pickModel($: EngineInterface): Promise<void> {
 }
 
 export const register: Register = (on, options) => {
+  // The desktop app draws deskdeck's band above the prompt (./desk); every
+  // hook below that draws leaves the desktop to it and to the app's own footer.
+  registerDesk(on, options)
+
   ttlMs = (options as Record<string, unknown>)['cacheTtl'] === '5m' ? 300000 : 3600000
 
   // At launch the engine may not have the model, settings or a usage reading
@@ -397,6 +414,7 @@ export const register: Register = (on, options) => {
     await safely(async () => {
       if ((await read($, runAtom)).isWorking) startTicker($)
     })
+    await safely(() => deskSessionStart($))
     return next(e)
   })
 
@@ -414,6 +432,7 @@ export const register: Register = (on, options) => {
       }
       await safely(() => recountContext($))
     }
+    await safely(() => deskMeasure($, e))
     return next(e)
   })
 
@@ -426,6 +445,7 @@ export const register: Register = (on, options) => {
       // The next poll counts the new window.
       lastCountAt = 0
     }
+    await safely(() => deskEnd($, e))
     return next(e)
   })
 
@@ -439,6 +459,7 @@ export const register: Register = (on, options) => {
       await update($, cacheAtom, () => ({ touchedAt: now }))
       await safely(() => recountContext($))
     }
+    await safely(() => deskAfterCompact($, e, done))
     return done
   })
 
@@ -450,6 +471,7 @@ export const register: Register = (on, options) => {
       await update($, runAtom, r => ({ ...r, isWorking: true, startedAt: now, now, tokens: 0 }))
       startTicker($)
     }
+    await safely(() => deskTurnStart($, e))
     return next(e)
   })
 
@@ -460,6 +482,7 @@ export const register: Register = (on, options) => {
       await update($, runAtom, r => ({ ...r, isWorking: false }))
       await safely(() => refreshControls($))
     }
+    await safely(() => deskTurnComplete($, e))
     return next(e)
   })
 
@@ -494,10 +517,12 @@ export const register: Register = (on, options) => {
         else if (chunk.kind === 'input') chars += chunk.json.length
         else if (chunk.kind === 'stop' && chunk.usage !== null) {
           tokensDone += chunk.usage.output_tokens
+          deskStepCounted(chunk.usage.output_tokens)
           counted = true
           await stamp(chunk.usage)
         }
         pending.set(id, counted ? 0 : Math.round(chars / 4))
+        deskStepPending(id, counted ? 0 : Math.round(chars / 4))
         yield chunk
         step = await stream.next()
       }
@@ -505,8 +530,12 @@ export const register: Register = (on, options) => {
       if (result !== undefined) await stamp(result.usage)
       return result
     } finally {
-      if (!counted) tokensDone += Math.round(chars / 4)
+      if (!counted) {
+        tokensDone += Math.round(chars / 4)
+        deskStepCounted(Math.round(chars / 4))
+      }
       pending.delete(id)
+      deskStepEnd(id)
     }
   })
 
@@ -526,6 +555,7 @@ export const register: Register = (on, options) => {
   // The band above the prompt: only the panes chips, so without them it draws
   // nothing and takes no row.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.surface === 'desktop') return deskBand($, e, next)
     if (e.props.hasSurvey) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -582,7 +612,8 @@ export const register: Register = (on, options) => {
 
   // The 5h, 7d and ctx pills and the cache time. None of the engine's mode
   // labels draw, nor the " · " it sets before them.
-  on('ui.render', { component: 'SessionMode' }, async ($, e) => {
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (e.surface === 'desktop') return next(e)
     const { Box, Text } = $.ui.resolve(e)
     // A blank of fixed width that never shrinks, so on a narrow terminal the
     // words keep their spacing and wrap whole instead of running together.
@@ -678,7 +709,8 @@ export const register: Register = (on, options) => {
 
   // The mode, model and effort, after the engine's own mode text; while a turn
   // runs, its time and live output tokens follow the effort.
-  on('ui.render', { component: 'PromptHint' }, async ($, e) => {
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface === 'desktop') return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     // A blank of fixed width that never shrinks, so on a narrow terminal the
     // words keep their spacing and wrap whole instead of running together.

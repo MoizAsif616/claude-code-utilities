@@ -1,0 +1,8 @@
+{
+  "name": "claude-code-utilities",
+  "owner": { "name": "Moiz Asif" },
+  "description": "Mods that work in both the Claude Code CLI and the desktop app",
+  "plugins": [
+    { "name": "statusdeck", "source": "./statusdeck", "description": "Status row in the CLI, status band in the desktop app" }
+  ]
+}

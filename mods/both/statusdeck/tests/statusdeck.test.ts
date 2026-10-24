@@ -25,7 +25,8 @@ const STATUS = { component: 'SessionMode', props: { modes: [] } } as const
 
 test('the hint line holds the mode and the model and effort buttons; the right slot the cache', async ($, on) => {
   mock.clock(on)
-  for (const surface of ['terminal', 'desktop'] as const) {
+  // The desktop draws deskdeck's band (desk.test.ts) and the app's own footer.
+  for (const surface of ['terminal'] as const) {
     const ui = await $.ui.mount({
       plugin: 'statusdeck',
       surface,
@@ -51,14 +52,15 @@ test('the band above the prompt draws nothing while idle', async ($, on) => {
     const { Text } = $.ui.resolve(e)
     return h(Text, {}, 'engine band') as RenderElement
   })
-  for (const surface of ['terminal', 'desktop'] as const) {
+  // The desktop draws deskdeck's band (desk.test.ts) and the app's own footer.
+  for (const surface of ['terminal'] as const) {
     const ui = await $.ui.mount({ plugin: 'statusdeck', surface, ...BAND })
     expect(await ui.find({ type: 'Button', key: 'model' })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /❄|⚡/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /engine band/ })).toBeDefined()
     await ui.unmount()
   }
-  expect(passed).toBe(2)
+  expect(passed).toBe(1)
 })
 
 test('while a turn runs, its time and live tokens follow the effort in the footer', async ($, on) => {
