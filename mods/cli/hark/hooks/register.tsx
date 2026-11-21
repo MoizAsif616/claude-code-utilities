@@ -590,6 +590,7 @@ export const register: Register = on => {
   // The voice line above the prompt: "hark: <model>" and the live bars on the
   // left, the Record or Stop button at the right end.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.surface !== 'terminal') return next(e) // terminal-only
     if (e.props.hasSurvey) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const now = await read($, phase)

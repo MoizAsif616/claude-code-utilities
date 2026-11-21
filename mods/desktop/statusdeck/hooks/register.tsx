@@ -556,6 +556,7 @@ export const register: Register = (on, options) => {
   // nothing and takes no row.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface === 'desktop') return deskBand($, e, next)
+    if (e.surface !== 'desktop') return next(e) // desktop-only: no band elsewhere
     if (e.props.hasSurvey) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -613,7 +614,8 @@ export const register: Register = (on, options) => {
   // The 5h, 7d and ctx pills and the cache time. None of the engine's mode
   // labels draw, nor the " · " it sets before them.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
-    if (e.surface === 'desktop') return next(e)
+    // statusdeck is desktop-only; the desktop app draws its own row, and the terminal keeps the engine's.
+    if (e) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     // A blank of fixed width that never shrinks, so on a narrow terminal the
     // words keep their spacing and wrap whole instead of running together.
@@ -710,7 +712,8 @@ export const register: Register = (on, options) => {
   // The mode, model and effort, after the engine's own mode text; while a turn
   // runs, its time and live output tokens follow the effort.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (e.surface === 'desktop') return next(e)
+    // statusdeck is desktop-only; the desktop app draws its own row, and the terminal keeps the engine's.
+    if (e) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     // A blank of fixed width that never shrinks, so on a narrow terminal the
     // words keep their spacing and wrap whole instead of running together.

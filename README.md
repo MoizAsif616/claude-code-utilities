@@ -6,12 +6,12 @@ another. They are sorted by where they run:
 | Folder | What goes there |
 | --- | --- |
 | `mods/cli` | Mods for the Claude Code CLI (the terminal) only |
-| `mods/desktop` | Mods for the Claude Code desktop app only (none yet) |
-| `mods/both` | Mods that work in both, with a behaviour for each |
+| `mods/desktop` | Mods for the Claude Code desktop app only |
+| `mods/both` | Mods that work in both, with a behaviour for each (none yet) |
 
 | Mod | Runs in | Its job |
 | --- | --- | --- |
-| `mods/both/statusdeck` | CLI and desktop | Live stats: a status row under the prompt in the CLI, a status band above the prompt in the desktop app |
+| `mods/desktop/statusdeck` | Desktop app | Live stats: a status band above the prompt in the desktop app |
 | `mods/cli/prettier` | CLI | The layout and colours of the whole chat: prompts, replies, code, tool rows, the spinner |
 | `mods/cli/hark` | CLI | Voice input: speak your prompt, transcribed on your own computer |
 
@@ -20,9 +20,10 @@ The two kinds load differently:
 - **CLI mods** are copied into `~/.claude/mods` and named in the `CLAUDE_CODE_PLUGIN_DIRS`
   environment variable, set in your shell's profile. Only a `claude` started from that shell sees it,
   so the desktop app never loads them.
-- **Mods for both (and for the desktop)** are installed as plugins: the desktop app doesn't read your
-  shell's profile, so `CLAUDE_CODE_PLUGIN_DIRS` can't reach it. `mods/both` is a plugin marketplace;
-  install from it once and the mod loads in the CLI and the desktop app alike.
+- **Desktop mods** are installed as plugins: the desktop app doesn't read your shell's profile, so
+  `CLAUDE_CODE_PLUGIN_DIRS` can't reach it. `mods/desktop` is a plugin marketplace; install from it
+  once and the mod loads in the desktop app. (It is also loaded by a `claude` in the terminal, but
+  draws nothing there.)
 
 Restart Claude Code (and the desktop app) after installing.
 
@@ -36,8 +37,8 @@ git clone https://github.com/MoizAsif616/claude-code-utilities.git
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\mods" | Out-Null
 Copy-Item -Recurse -Force .\claude-code-utilities\mods\cli\* "$env:USERPROFILE\.claude\mods\"
 Add-Content $PROFILE '$env:CLAUDE_CODE_PLUGIN_DIRS = "$env:USERPROFILE\.claude\mods\prettier;$env:USERPROFILE\.claude\mods\hark"'
-# Mods for both: installed as plugins from the mods/both marketplace
-claude plugin marketplace add .\claude-code-utilities\mods\both
+# Desktop mods: installed as plugins from the mods/desktop marketplace
+claude plugin marketplace add .\claude-code-utilities\mods\desktop
 claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
@@ -57,7 +58,7 @@ git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
 cp -r claude-code-utilities/mods/cli/* ~/.claude/mods/
 echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/hark"' >> ~/.bashrc
-claude plugin marketplace add ./claude-code-utilities/mods/both
+claude plugin marketplace add ./claude-code-utilities/mods/desktop
 claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
@@ -70,7 +71,7 @@ git clone https://github.com/MoizAsif616/claude-code-utilities.git
 mkdir -p ~/.claude/mods
 cp -R claude-code-utilities/mods/cli/* ~/.claude/mods/
 echo 'export CLAUDE_CODE_PLUGIN_DIRS="$HOME/.claude/mods/prettier:$HOME/.claude/mods/hark"' >> ~/.zshrc
-claude plugin marketplace add ./claude-code-utilities/mods/both
+claude plugin marketplace add ./claude-code-utilities/mods/desktop
 claude plugin install statusdeck@claude-code-utilities --scope user
 ```
 
@@ -84,32 +85,12 @@ there reaches Claude Code after `/reload-plugins`.
 The three mods never draw the same thing, so their order doesn't matter (`;`-separated on Windows,
 `:` on Linux and macOS in `CLAUDE_CODE_PLUGIN_DIRS`). The install commands list prettier first.
 
-The one row hark shares is the one above the prompt: statusdeck draws its panes chips there in the
-CLI (only with the panes mod), and whichever of the two loads first shows when both have something
-to draw. hark also doesn't affect prettier's times: it keeps each prompt as it was finally sent, so
+hark also doesn't affect prettier's times: it keeps each prompt as it was finally sent, so
 the time under a prompt you sent while recording is right.
 
 ## statusdeck
 
-One mod with two looks: a status row under the prompt in the CLI, and a status band above the prompt
-in the desktop app. Each draws only where it belongs.
-
-### In the CLI
-
-The row under the prompt, with every colour in it:
-
-- **Mode, model and effort** at the left. A click on the model or the effort opens Claude Code's
-  picker for it.
-- **Usage pills** at the right: the 5-hour and 7-day rate-limit windows and the context fill, each
-  coloured from blue (little used) through green and amber to red (nearly full), with the time
-  until a window resets.
-- **Cache warmth:** `⚡` and a countdown while the prompt cache is warm, `❄` once it has gone cold.
-- **While Claude works:** the turn's running time and live output tokens after the effort.
-- **Always one line:** when the terminal is too narrow, pills drop in this order: 7d, ctx, 5h, then
-  the cache. They come back as room returns.
-- **Pane chips** above the prompt when the panes mod is installed.
-
-### In the desktop app
+A status band above the prompt in the desktop app. It draws nothing in the CLI.
 
 A band right above the prompt, in the app's theme colours, so it reads in light and dark mode. The
 bar under the prompt is left to the app: it draws a mod's content there only as plain text.
@@ -283,5 +264,5 @@ line only needs adding once. In a running session, `/reload-plugins` picks up th
 ## Notes
 
 - The `types/` and `tests/` folders inside each mod are for development and aren't needed to run the mods.
-- statusdeck (CLI and desktop app) and prettier are tested on Windows. The code has nothing Windows-specific, so they should work on Linux and macOS, but I haven't verified that.
+- statusdeck and prettier are tested on Windows. The code has nothing Windows-specific, so they should work on Linux and macOS, but I haven't verified that.
 - hark is tested on Linux (Ubuntu). Its code handles Windows and macOS paths, but it hasn't been tried there.

@@ -1,0 +1,8 @@
+{
+  "name": "claude-code-utilities",
+  "owner": { "name": "Moiz Asif" },
+  "description": "Mods for the Claude Code desktop app",
+  "plugins": [
+    { "name": "statusdeck", "source": "./statusdeck", "description": "Status band in the desktop app" }
+  ]
+}
